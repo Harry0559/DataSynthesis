@@ -188,8 +188,9 @@ class JsonlProvider(TaskProvider):
                     f"({len(file_state.content)} 字符)"
                 )
 
-            # 组装 WorkContext 的 source 信息
-            jsonl_basename = os.path.basename(self.jsonl_path)
+            # 组装 WorkContext 的 source 信息（目录名使用去掉扩展名的文件名）
+            base_name = os.path.basename(self.jsonl_path)
+            jsonl_basename, _ = os.path.splitext(base_name)
 
             entry_id = self._selected_entry_id
             if entry_id is None:

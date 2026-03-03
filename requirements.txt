@@ -1,0 +1,7 @@
+# 核心依赖（当前最小化，按需添加）
+# 暂无必要的第三方依赖，全部使用 Python 标准库
+
+# TODO: 后续按模块需要逐步添加
+# pyautogui>=0.9.54                              # platform 层键盘/鼠标模拟
+# pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"  # macOS 窗口管理
+# pyyaml>=6.0                                    # YAML 配置文件支持

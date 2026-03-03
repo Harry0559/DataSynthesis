@@ -69,6 +69,16 @@ class FileInitState:
 
 
 @dataclass
+class FileFinalState:
+    """文件最终状态：描述一次计划执行结束后该文件应有的内容"""
+
+    relative_path: str
+    content: str
+    # 是否在计划结束时应当被删除（不存在）
+    is_deleted: bool = False
+
+
+@dataclass
 class ObserveConfig:
     """Observe 全局默认配置"""
 
@@ -112,6 +122,7 @@ class TypePlan:
 
     file_init_states: list[FileInitState]
     actions: list[Action]
+    file_final_states: list[FileFinalState] = field(default_factory=list)
     observe_config: ObserveConfig = field(default_factory=ObserveConfig)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -126,6 +137,14 @@ class TypePlan:
                 }
                 for f in self.file_init_states
             ],
+            "file_final_states": [
+                {
+                    "relative_path": f.relative_path,
+                    "content": f.content,
+                    "is_deleted": f.is_deleted,
+                }
+                for f in self.file_final_states
+            ],
             "actions": [_action_to_dict(a) for a in self.actions],
             "observe_config": asdict(self.observe_config),
             "metadata": self.metadata,
@@ -137,6 +156,9 @@ class TypePlan:
         file_init_states = [
             FileInitState(**f) for f in data.get("file_init_states", [])
         ]
+        file_final_states = [
+            FileFinalState(**f) for f in data.get("file_final_states", [])
+        ]
         actions = [_action_from_dict(a) for a in data.get("actions", [])]
         observe_config = (
             ObserveConfig(**data["observe_config"])
@@ -147,6 +169,7 @@ class TypePlan:
         return cls(
             file_init_states=file_init_states,
             actions=actions,
+            file_final_states=file_final_states,
             observe_config=observe_config,
             metadata=metadata,
         )

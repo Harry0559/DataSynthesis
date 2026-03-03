@@ -21,6 +21,7 @@ from typing import List
 from ..core.models import (
     ChangeSet,
     DeleteAction,
+    FileFinalState,
     FileInitState,
     ObserveAction,
     ObserveConfig,
@@ -47,9 +48,11 @@ class DiffHunkStrategy(PlanStrategy):
 
         对每个 FileChange：
         - file_init_states 使用 before_content 作为初始内容
+        - file_final_states 使用 after_content / is_deleted 作为最终状态
         - 基于行级 diff 生成 Delete/Type/Observe 序列
         """
         file_init_states: List[FileInitState] = []
+        file_final_states: List[FileFinalState] = []
         actions: List[object] = []
 
         for fc in change_set.file_changes:
@@ -58,6 +61,16 @@ class DiffHunkStrategy(PlanStrategy):
                     relative_path=fc.relative_path,
                     content=fc.before_content,
                     is_new_file=fc.is_new_file,
+                )
+            )
+
+            # 约定：最终状态使用 ChangeSet 中的 after_content / is_deleted
+            final_content = "" if fc.is_deleted else fc.after_content
+            file_final_states.append(
+                FileFinalState(
+                    relative_path=fc.relative_path,
+                    content=final_content,
+                    is_deleted=fc.is_deleted,
                 )
             )
 
@@ -76,6 +89,7 @@ class DiffHunkStrategy(PlanStrategy):
         return TypePlan(
             file_init_states=file_init_states,
             actions=actions,
+            file_final_states=file_final_states,
             observe_config=observe_config,
             metadata=metadata,
         )

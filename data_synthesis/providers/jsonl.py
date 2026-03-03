@@ -26,6 +26,7 @@ sample_index / random_seed 语义：
 import json
 import os
 import random
+import tempfile
 from contextlib import contextmanager
 from typing import Generator, Optional
 
@@ -167,10 +168,50 @@ class JsonlProvider(TaskProvider):
         """
         创建临时工作目录。
 
-        TODO:
         1. 创建临时目录
         2. 按 file_init_states 写入文件
-        3. yield WorkContext
+        3. 构造带 source 信息的 WorkContext
         4. 退出时删除临时目录
         """
-        raise NotImplementedError("JsonlProvider._manage_environment 尚未实现")
+        with tempfile.TemporaryDirectory(prefix="data_synthesis_") as tmp_dir:
+            file_paths: dict[str, str] = {}
+
+            # 按 TypePlan 初始状态写入文件
+            for file_state in type_plan.file_init_states:
+                abs_path = os.path.join(tmp_dir, file_state.relative_path)
+                os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                with open(abs_path, "w", encoding="utf-8") as f:
+                    f.write(file_state.content)
+                file_paths[file_state.relative_path] = abs_path
+                print(
+                    f"  写入文件: {file_state.relative_path} "
+                    f"({len(file_state.content)} 字符)"
+                )
+
+            # 组装 WorkContext 的 source 信息
+            jsonl_basename = os.path.basename(self.jsonl_path)
+
+            entry_id = self._selected_entry_id
+            if entry_id is None:
+                # 防御性回退：从 TypePlan.metadata 中尝试获取
+                entry_id = (
+                    type_plan.metadata.get("source_metadata", {})
+                    .get("entry_id")
+                )
+
+            source_type = "jsonl"
+            if entry_id is not None:
+                source_path_segments = (jsonl_basename, entry_id)
+            else:
+                # 极端情况下没有 entry_id，则仅按文件名分层
+                source_path_segments = (jsonl_basename,)
+
+            context = WorkContext(
+                work_dir=tmp_dir,
+                file_paths=file_paths,
+                source_type=source_type,
+                source_path_segments=source_path_segments,
+            )
+
+            yield context
+            print("  临时目录已清理")

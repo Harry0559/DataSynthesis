@@ -14,6 +14,7 @@ from .core.session import run_session
 from .providers.plan_file import PlanFileProvider
 from .providers.git_repo import GitRepoProvider
 from .providers.jsonl import JsonlProvider
+from .strategies import DiffHunkStrategy
 
 REPRODUCE_SUBDIR = "reproduce"
 
@@ -30,12 +31,13 @@ def main():
 
 示例:
   python -m data_synthesis --source git-repo --source-path ./my-repo --dry-run
+  python -m data_synthesis --source jsonl --source-path ./input.jsonl --strategy diff-hunk --dry-run
   python -m data_synthesis --plan output/collected/git-repo/repo1/abc1234/session_xxx/type_plan.json --dry-run
 """,
     )
 
-    # 数据源（与 --plan 互斥，例如以下类型）
-    source_group = parser.add_argument_group("数据源（与 --plan 互斥，例如）")
+    # 模式与数据源（与 --plan 互斥）
+    source_group = parser.add_argument_group("模式与数据源")
     source_group.add_argument(
         "--source",
         type=str,
@@ -50,10 +52,32 @@ def main():
         help="数据源路径（仓库目录或 JSONL 文件路径）",
     )
     source_group.add_argument(
+        "--strategy",
+        type=str,
+        choices=["diff-hunk"],
+        metavar="NAME",
+        help="当 --source=jsonl 时使用的计划策略（当前支持: diff-hunk）",
+    )
+    source_group.add_argument(
         "--plan",
         type=str,
         metavar="PATH",
         help="复现模式：指定 type_plan.json 路径，输出写入该文件所在目录/reproduce/",
+    )
+
+    # JSONL 样本选择（仅在 --source=jsonl 时生效）
+    jsonl_group = parser.add_argument_group("JSONL 样本选择（仅 --source=jsonl 时生效）")
+    jsonl_group.add_argument(
+        "--sample-index",
+        type=int,
+        metavar="IDX",
+        help="JSONL 样本索引（0-base）；指定时优先于 random_seed",
+    )
+    jsonl_group.add_argument(
+        "--random-seed",
+        type=int,
+        metavar="SEED",
+        help="在未指定 sample_index 时，用于可复现地随机选择样本",
     )
 
     # 执行
@@ -96,6 +120,10 @@ def main():
         )
     if has_source and (args.source is None or args.source_path is None):
         parser.error("使用全新采集时需同时指定 --source 和 --source-path")
+    if args.sample_index is not None and args.sample_index < 0:
+        parser.error("--sample-index 必须为非负整数（0-base 索引）")
+    if has_source and args.source == "jsonl" and args.strategy is None:
+        parser.error("--source=jsonl 时必须指定 --strategy（当前仅支持: diff-hunk）")
 
     # ========== 组装 TaskProvider 与 output_dir ==========
     if has_plan:
@@ -122,9 +150,13 @@ def main():
                 plan_strategy=_PlaceholderStrategy(),
             )
         else:  # jsonl
+            # 当前仅支持 diff-hunk 策略
+            plan_strategy = DiffHunkStrategy()
             task_provider = JsonlProvider(
                 jsonl_path=args.source_path,
-                plan_strategy=_PlaceholderStrategy(),
+                plan_strategy=plan_strategy,
+                sample_index=args.sample_index,
+                random_seed=args.random_seed,
             )
         output_dir = args.output_dir
 

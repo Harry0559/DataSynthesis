@@ -49,11 +49,6 @@ class EditorAdapter(ABC):
         ...
 
     @abstractmethod
-    def send_hotkey(self, *keys: str) -> None:
-        """发送快捷键组合"""
-        ...
-
-    @abstractmethod
     def validate_settings(self) -> bool:
         """
         校验编辑器配置是否满足运行要求。

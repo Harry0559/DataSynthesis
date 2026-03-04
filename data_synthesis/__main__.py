@@ -94,6 +94,14 @@ def main():
         metavar="SEC",
         help="字符输入间隔秒数（默认: 0.05）",
     )
+    exec_group.add_argument(
+        "--editor",
+        type=str,
+        choices=["cursor"],
+        default="cursor",
+        metavar="NAME",
+        help="编辑器适配器类型（当前仅支持: cursor）",
+    )
 
     # 输出（全新采集时生效；复现时固定为 plan 所在目录/reproduce/）
     output_group = parser.add_argument_group("输出")
@@ -163,8 +171,15 @@ def main():
     # ========== 组装 Editor ==========
     editor = None
     if not args.dry_run:
-        print("错误: 非 dry-run 模式需要编辑器适配器，当前实现下需使用 --dry-run")
-        sys.exit(1)
+        # 根据 CLI 选择编辑器类型，并为其注入默认 PlatformHandler
+        if args.editor == "cursor":
+            from .platform import create_default_platform
+            from .editors.cursor import CursorAdapter
+
+            platform = create_default_platform()
+            editor = CursorAdapter(platform=platform)
+        else:
+            parser.error(f"未知的编辑器类型: {args.editor}")
 
     # ========== 组装 Collector ==========
     collector = None

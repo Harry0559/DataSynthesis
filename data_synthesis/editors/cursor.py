@@ -8,15 +8,19 @@ TODO: 实现以下功能（可参考 CursorSynthesis 项目的 editor/cursor_con
 - type_text(): 通过 Platform 层模拟键盘输入
 - delete_chars_forward(): 模拟 Delete 键（向后删除）
 - save_file(): Cmd+S
-- send_hotkey(): 委托给 Platform 层
 - validate_settings(): 检查 Cursor settings.json 中的必要配置
 """
 
 from .base import EditorAdapter
+from ..platform.base import PlatformHandler
 
 
 class CursorAdapter(EditorAdapter):
     """Cursor IDE 适配器"""
+
+    def __init__(self, platform: PlatformHandler) -> None:
+        """构造函数，注入 PlatformHandler 以便执行底层键盘/窗口操作。"""
+        self._platform = platform
 
     @property
     def name(self) -> str:
@@ -48,10 +52,6 @@ class CursorAdapter(EditorAdapter):
     def save_file(self) -> None:
         """TODO: Cmd+S 保存"""
         raise NotImplementedError("CursorAdapter.save_file 尚未实现")
-
-    def send_hotkey(self, *keys: str) -> None:
-        """TODO: 发送快捷键"""
-        raise NotImplementedError("CursorAdapter.send_hotkey 尚未实现")
 
     def validate_settings(self) -> bool:
         """TODO: 校验 Cursor 配置"""

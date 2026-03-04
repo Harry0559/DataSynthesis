@@ -6,7 +6,7 @@ TODO: 实现以下功能（可参考 CursorSynthesis 项目的 editor/cursor_con
 - open_file(): 通过 Quick Open (Cmd+P) 打开文件
 - goto(): 通过 Go to Line (Ctrl+G) 定位
 - type_text(): 通过 Platform 层模拟键盘输入
-- delete_chars(): 模拟 Delete/Backspace 按键
+- delete_chars_forward(): 模拟 Delete 键（向后删除）
 - save_file(): Cmd+S
 - send_hotkey(): 委托给 Platform 层
 - validate_settings(): 检查 Cursor settings.json 中的必要配置
@@ -41,9 +41,9 @@ class CursorAdapter(EditorAdapter):
         """TODO: 模拟键盘输入"""
         raise NotImplementedError("CursorAdapter.type_text 尚未实现")
 
-    def delete_chars(self, count: int) -> None:
-        """TODO: 模拟删除"""
-        raise NotImplementedError("CursorAdapter.delete_chars 尚未实现")
+    def delete_chars_forward(self, count: int) -> None:
+        """TODO: 模拟向后删除（Delete 键）"""
+        raise NotImplementedError("CursorAdapter.delete_chars_forward 尚未实现")
 
     def save_file(self) -> None:
         """TODO: Cmd+S 保存"""

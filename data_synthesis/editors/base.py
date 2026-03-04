@@ -39,8 +39,8 @@ class EditorAdapter(ABC):
         ...
 
     @abstractmethod
-    def delete_chars(self, count: int) -> None:
-        """删除指定数量的字符"""
+    def delete_chars_forward(self, count: int) -> None:
+        """在光标位置向后删除指定数量的字符（Forward Delete，即 Delete 键）"""
         ...
 
     @abstractmethod

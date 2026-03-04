@@ -2,7 +2,7 @@
 核心数据结构
 
 定义 Pipeline 中所有数据结构：
-- Action 原语（TypeAction, DeleteAction, ObserveAction）
+- Action 原语（TypeAction, ForwardDeleteAction, ObserveAction）
 - TypePlan（统一中间格式，可序列化为 JSON）
 - FileInitState, ObserveConfig
 - WorkContext, Task
@@ -31,14 +31,15 @@ class TypeAction:
 
 
 @dataclass
-class DeleteAction:
-    """删除动作：在指定位置删除若干字符（向后删除，即 Delete 键）"""
+class ForwardDeleteAction:
+    """删除动作：在指定位置向后删除若干字符（即 Delete 键）。
+    命名显式为 ForwardDelete，与未来 BackwardDelete（向前删除，Backspace）区分。"""
 
     file: str
     line: int
     col: int
     count: int
-    type: Literal["delete"] = field(default="delete", init=False)
+    type: Literal["delete_forward"] = field(default="delete_forward", init=False)
 
 
 @dataclass
@@ -51,7 +52,7 @@ class ObserveAction:
     type: Literal["observe"] = field(default="observe", init=False)
 
 
-Action = Union[TypeAction, DeleteAction, ObserveAction]
+Action = Union[TypeAction, ForwardDeleteAction, ObserveAction]
 
 
 # ============================================================
@@ -226,9 +227,9 @@ def _action_to_dict(action: Action) -> dict[str, Any]:
             "col": action.col,
             "content": action.content,
         }
-    elif isinstance(action, DeleteAction):
+    elif isinstance(action, ForwardDeleteAction):
         return {
-            "type": "delete",
+            "type": "delete_forward",
             "file": action.file,
             "line": action.line,
             "col": action.col,
@@ -257,8 +258,8 @@ def _action_from_dict(data: dict[str, Any]) -> Action:
             col=data["col"],
             content=data["content"],
         )
-    elif action_type == "delete":
-        return DeleteAction(
+    elif action_type == "delete_forward":
+        return ForwardDeleteAction(
             file=data["file"],
             line=data["line"],
             col=data["col"],

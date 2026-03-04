@@ -9,7 +9,7 @@ DiffHunkStrategy：按 diff hunk 重放文件变更
 
 注意：
 - 重放过程中维护 current_line（1-base），表示当前缓冲区中下一次操作所在的行号。
-- delete 时，逐行在 current_line 做 DeleteAction，删除后下一行会顶上来，current_line 不变。
+- delete 时，逐行在 current_line 做 ForwardDeleteAction（向后删除），删除后下一行会顶上来，current_line 不变。
 - insert 时，在 current_line 逐行 Type 新行，每插入一行 current_line += 1。
 """
 
@@ -20,7 +20,7 @@ from typing import List
 
 from ..core.models import (
     ChangeSet,
-    DeleteAction,
+    ForwardDeleteAction,
     FileFinalState,
     FileInitState,
     ObserveAction,
@@ -49,7 +49,7 @@ class DiffHunkStrategy(PlanStrategy):
         对每个 FileChange：
         - file_init_states 使用 before_content 作为初始内容
         - file_final_states 使用 after_content / is_deleted 作为最终状态
-        - 基于行级 diff 生成 Delete/Type/Observe 序列
+        - 基于行级 diff 生成 ForwardDelete/Type/Observe 序列
         """
         file_init_states: List[FileInitState] = []
         file_final_states: List[FileFinalState] = []
@@ -101,11 +101,11 @@ class DiffHunkStrategy(PlanStrategy):
         after_content: str,
     ) -> List[object]:
         """
-        基于行级 diff hunk，为单个文件生成 Delete/Type/Observe 的 Action 序列。
+        基于行级 diff hunk，为单个文件生成 ForwardDelete/Type/Observe 的 Action 序列。
 
         使用 difflib.SequenceMatcher 在按行拆分的 before/after 上计算 opcode：
         - equal: 行内容完全相同，current_line 前进相同的行数
-        - delete: before[i1:i2] 被删除
+        - delete: before[i1:i2] 被删除（向后删除）
         - insert: after[j1:j2] 为新增行
         - replace: before[i1:i2] 被 after[j1:j2] 替换（视为 delete + insert）
 
@@ -116,7 +116,7 @@ class DiffHunkStrategy(PlanStrategy):
         if not before_content and not after_content:
             return actions
 
-        # 一份不带换行用于 diff，一份保留换行用于准确计算 Delete/Type 的字符数
+        # 一份不带换行用于 diff，一份保留换行用于准确计算 ForwardDelete/Type 的字符数
         before_lines = before_content.splitlines()
         before_lines_nl = before_content.splitlines(keepends=True)
 
@@ -140,7 +140,7 @@ class DiffHunkStrategy(PlanStrategy):
                     if not old_line:
                         continue
                     actions.append(
-                        DeleteAction(
+                        ForwardDeleteAction(
                             file=relative_path,
                             line=current_line,
                             col=1,

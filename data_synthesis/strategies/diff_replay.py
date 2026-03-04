@@ -3,7 +3,7 @@ DiffReplayStrategy：逐步重放 diff
 
 TODO: 实现以下功能：
 - 计算 before_content → after_content 的行级 diff
-- 将 diff 转为 TypeAction / DeleteAction 序列
+- 将 diff 转为 TypeAction / ForwardDeleteAction 序列
 - 每 observe_every 个字符插入一个 ObserveAction
 - 确定各文件的 initial_content（可能做部分预应用）
 """
@@ -28,7 +28,7 @@ class DiffReplayStrategy(PlanStrategy):
 
         TODO:
         1. 对每个 FileChange 计算行级 diff
-        2. 将 diff hunks 转为有序的 TypeAction / DeleteAction
+        2. 将 diff hunks 转为有序的 TypeAction / ForwardDeleteAction
         3. 每 self.observe_every 个字符插入 ObserveAction
         4. 生成 file_init_states（before_content 或预应用后的内容）
         5. 返回 TypePlan

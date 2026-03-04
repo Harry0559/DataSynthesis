@@ -3,7 +3,7 @@ Executor：按 TypePlan 操控编辑器
 
 核心执行循环：遍历 actions 列表，根据 Action 类型分发：
 - TypeAction → 定位 + 逐字输入
-- DeleteAction → 定位 + 删除字符
+- ForwardDeleteAction → 定位 + 向后删除字符
 - ObserveAction → 保存文件 + 通知采集器
 
 支持 dry-run 模式（不操作编辑器，只打印日志）。
@@ -15,7 +15,7 @@ from typing import Optional
 
 from ..collectors.base import Collector
 from ..core.models import (
-    DeleteAction,
+    ForwardDeleteAction,
     ObserveAction,
     ObserveConfig,
     TypeAction,
@@ -69,18 +69,18 @@ class Executor:
                         f"输入 {action.content!r} ({len(action.content)} 字符)"
                     )
 
-            elif isinstance(action, DeleteAction):
+            elif isinstance(action, ForwardDeleteAction):
                 if action.file != current_file:
                     self._switch_file(action.file, context)
                     current_file = action.file
 
                 self._goto(action.line, action.col)
-                self._delete_chars(action.count)
+                self._delete_chars_forward(action.count)
 
                 if self.dry_run:
                     print(
-                        f"  [{i + 1}/{total}] Delete → {action.file}:{action.line}:{action.col} "
-                        f"删除 {action.count} 字符"
+                        f"  [{i + 1}/{total}] ForwardDelete → {action.file}:{action.line}:{action.col} "
+                        f"向后删除 {action.count} 字符"
                     )
 
             elif isinstance(action, ObserveAction):
@@ -123,11 +123,11 @@ class Executor:
             self.editor.type_text(char)  # type: ignore[union-attr]
             time.sleep(self.type_interval)
 
-    def _delete_chars(self, count: int) -> None:
-        """删除字符"""
+    def _delete_chars_forward(self, count: int) -> None:
+        """在光标位置向后删除 count 个字符"""
         if self.dry_run:
             return
-        self.editor.delete_chars(count)  # type: ignore[union-attr]
+        self.editor.delete_chars_forward(count)  # type: ignore[union-attr]
 
     def _observe(
         self,

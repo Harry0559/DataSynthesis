@@ -40,3 +40,13 @@ class PlatformHandler(ABC):
     def quit_app(self, app_name: str) -> None:
         """退出应用"""
         ...
+
+    @abstractmethod
+    def get_modifier_key(self) -> str:
+        """返回当前平台的主修饰键名（如 command / ctrl），用于拼编辑器快捷键。"""
+        ...
+
+    @abstractmethod
+    def open_app_with_folder(self, app_name: str, folder_path: str) -> None:
+        """启动应用并打开指定目录（如 open -a App /path/to/folder）。"""
+        ...

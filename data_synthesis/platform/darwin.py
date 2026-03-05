@@ -159,10 +159,19 @@ class DarwinPlatformHandler(PlatformHandler):
 
         subprocess.run(["osascript", "-e", script], check=True)
 
+    def get_modifier_key(self) -> str:
+        """macOS 使用 command 作为主修饰键。"""
+        return "command"
+
     def activate_window(self, app_name: str) -> None:
         """使用 open -a 激活指定应用窗口。"""
         subprocess.run(["open", "-a", app_name], check=False)
         time.sleep(0.5)
+
+    def open_app_with_folder(self, app_name: str, folder_path: str) -> None:
+        """使用 open -a 启动应用并打开指定目录。"""
+        subprocess.run(["open", "-a", app_name, folder_path], check=False)
+        time.sleep(1.0)
 
     def launch_app(self, app_name: str) -> None:
         """使用 open -a 启动应用。"""

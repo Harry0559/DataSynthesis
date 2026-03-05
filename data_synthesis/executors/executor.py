@@ -9,7 +9,6 @@ Executor：按 TypePlan 操控编辑器
 支持 dry-run 模式（不操作编辑器，只打印日志）。
 """
 
-import os
 import time
 from typing import Optional
 
@@ -101,13 +100,10 @@ class Executor:
     # ================================================================
 
     def _switch_file(self, file: str, context: WorkContext) -> None:
-        """切换到指定文件"""
+        """切换到指定文件（file 为相对路径）。"""
         if self.dry_run:
             return
-        abs_path = context.file_paths.get(file) or os.path.join(
-            context.work_dir, file
-        )
-        self.editor.open_file(abs_path)  # type: ignore[union-attr]
+        self.editor.open_file(file)  # type: ignore[union-attr]
 
     def _goto(self, line: int, col: int) -> None:
         """定位到指定位置"""
@@ -120,7 +116,7 @@ class Executor:
         if self.dry_run:
             return
         for char in content:
-            self.editor.type_text(char)  # type: ignore[union-attr]
+            self.editor.type_char(char)  # type: ignore[union-attr]
             time.sleep(self.type_interval)
 
     def _delete_chars_forward(self, count: int) -> None:

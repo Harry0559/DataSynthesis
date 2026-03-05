@@ -24,8 +24,8 @@ class EditorAdapter(ABC):
         ...
 
     @abstractmethod
-    def open_file(self, file_path: str) -> None:
-        """打开指定文件"""
+    def open_file(self, relative_path: str) -> None:
+        """打开指定文件。relative_path 为相对于工作目录的相对路径。"""
         ...
 
     @abstractmethod
@@ -34,8 +34,8 @@ class EditorAdapter(ABC):
         ...
 
     @abstractmethod
-    def type_text(self, text: str) -> None:
-        """输入文本（单字符或短字符串）"""
+    def type_char(self, char: str) -> None:
+        """输入单个字符。"""
         ...
 
     @abstractmethod

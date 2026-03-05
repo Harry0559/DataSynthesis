@@ -1,14 +1,13 @@
 """
 CursorAdapter：Cursor IDE 适配器
 
-TODO: 实现以下功能（可参考 CursorSynthesis 项目的 editor/cursor_control.py）：
 - restart(): 关闭文件夹 → 退出 Cursor → 启动 Cursor → 打开工作目录
-- open_file(): 通过 Quick Open (Cmd+P) 打开文件
-- goto(): 通过 Go to Line (Ctrl+G) 定位
-- type_text(): 通过 Platform 层模拟键盘输入
-- delete_chars_forward(): 模拟 Delete 键（向后删除）
+- open_file(relative_path): 通过 Quick Open (Cmd+P) 打开文件，入参为相对路径
+- goto(): 通过 Quick Open 输入 ":line:col" 定位
+- type_char(): 透传 Platform 层输入单个字符
+- delete_chars_forward(): 模拟 Delete 键（向后删除），每次间隔 0.03s
 - save_file(): Cmd+S
-- validate_settings(): 检查 Cursor settings.json 中的必要配置
+- validate_settings(): 暂未实现
 """
 
 import os
@@ -63,26 +62,44 @@ class CursorAdapter(EditorAdapter):
         # 6. 再次激活窗口，确保新实例获得焦点
         p.activate_window("Cursor")
 
-    def open_file(self, file_path: str) -> None:
-        """TODO: 通过 Quick Open 打开文件"""
-        raise NotImplementedError("CursorAdapter.open_file 尚未实现")
+    def open_file(self, relative_path: str) -> None:
+        """通过 Quick Open (Cmd+P) 打开文件，relative_path 为相对路径。"""
+        p = self._platform
+        p.activate_window("Cursor")
+        time.sleep(0.2)
+        p.send_hotkey(p.get_modifier_key(), "p")
+        time.sleep(0.3)
+        for c in relative_path:
+            p.type_char(c)
+            time.sleep(0.02)
+        p.send_key("enter")
 
     def goto(self, line: int, col: int) -> None:
-        """TODO: 通过 Go to Line 定位"""
-        raise NotImplementedError("CursorAdapter.goto 尚未实现")
+        """通过 Quick Open 输入 ":line:col" 定位到指定行列。"""
+        p = self._platform
+        p.send_hotkey(p.get_modifier_key(), "p")
+        time.sleep(0.2)
+        for c in f":{line}:{col}":
+            p.type_char(c)
+            time.sleep(0.02)
+        p.send_key("enter")
 
-    def type_text(self, text: str) -> None:
-        """TODO: 模拟键盘输入"""
-        raise NotImplementedError("CursorAdapter.type_text 尚未实现")
+    def type_char(self, char: str) -> None:
+        """透传 Platform 层输入单个字符。"""
+        self._platform.type_char(char)
 
     def delete_chars_forward(self, count: int) -> None:
-        """TODO: 模拟向后删除（Delete 键）"""
-        raise NotImplementedError("CursorAdapter.delete_chars_forward 尚未实现")
+        """在光标位置向后删除 count 个字符，每次删除间隔 0.03s。"""
+        p = self._platform
+        for _ in range(count):
+            p.send_key("forward_delete")
+            time.sleep(0.03)
 
     def save_file(self) -> None:
-        """TODO: Cmd+S 保存"""
-        raise NotImplementedError("CursorAdapter.save_file 尚未实现")
+        """发送 Cmd+S 保存当前文件。"""
+        mod = self._platform.get_modifier_key()
+        self._platform.send_hotkey(mod, "s")
 
     def validate_settings(self) -> bool:
-        """TODO: 校验 Cursor 配置"""
+        """校验 Cursor 配置（暂未实现）。"""
         raise NotImplementedError("CursorAdapter.validate_settings 尚未实现")

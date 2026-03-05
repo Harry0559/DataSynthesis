@@ -43,7 +43,7 @@ class Executor:
         self.vi_mode = vi_mode
         self.dry_run = dry_run
 
-    def execute(self, type_plan: TypePlan, context: WorkContext) -> None:
+    def execute(self, type_plan: TypePlan) -> None:
         """按 TypePlan 执行全部操作"""
         current_file: Optional[str] = None
         char_index = 0
@@ -55,7 +55,7 @@ class Executor:
         for i, action in enumerate(type_plan.actions):
             if isinstance(action, TypeAction):
                 if action.file != current_file:
-                    self._switch_file(action.file, context)
+                    self._switch_file(action.file)
                     current_file = action.file
 
                 self._goto(action.line, action.col)
@@ -70,7 +70,7 @@ class Executor:
 
             elif isinstance(action, ForwardDeleteAction):
                 if action.file != current_file:
-                    self._switch_file(action.file, context)
+                    self._switch_file(action.file)
                     current_file = action.file
 
                 self._goto(action.line, action.col)
@@ -99,7 +99,7 @@ class Executor:
     # 内部方法
     # ================================================================
 
-    def _switch_file(self, file: str, context: WorkContext) -> None:
+    def _switch_file(self, file: str) -> None:
         """切换到指定文件（file 为相对路径）。"""
         if self.dry_run:
             return

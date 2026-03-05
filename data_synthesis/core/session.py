@@ -93,7 +93,7 @@ def run_session(
             vi_mode=vi_mode,
             dry_run=dry_run,
         )
-        executor.execute(type_plan, context)
+        executor.execute(type_plan)
 
         if collector:
             collector.finalize()

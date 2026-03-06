@@ -83,7 +83,9 @@ def run_session(
             print(f"  输出目录: {session_dir}")
 
         if collector and session_dir:
-            collector.init_session(session_dir, effective_observe_config)
+            collector.init_session(
+                session_dir, effective_observe_config, work_context=context
+            )
 
         executor = Executor(
             editor=editor,

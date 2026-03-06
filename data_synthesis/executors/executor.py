@@ -82,7 +82,7 @@ class Executor:
                     )
 
             elif isinstance(action, ObserveAction):
-                self._observe(action, current_file, char_index)
+                self._observe(action, current_file, i)
 
                 if self.dry_run:
                     collector_info = (
@@ -128,9 +128,9 @@ class Executor:
         self,
         action: ObserveAction,
         current_file: Optional[str],
-        char_index: int,
+        action_index: int,
     ) -> None:
-        """执行观察采集"""
+        """执行观察采集。line/col 暂用占位 0，待 Executor 维护光标后替换。"""
         if self.dry_run or not self.collector:
             return
 
@@ -144,5 +144,10 @@ class Executor:
         post_wait = self.observe_config.post_wait
 
         time.sleep(pre_wait)
-        self.collector.collect(file_path=current_file or "", char_index=char_index)
+        self.collector.collect(
+            relative_path=current_file or "",
+            action_index=action_index,
+            line=0,
+            col=0,
+        )
         time.sleep(post_wait)

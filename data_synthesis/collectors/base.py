@@ -6,8 +6,9 @@ Collector 抽象基类
 """
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
-from ..core.models import ObserveConfig
+from ..core.models import ObserveConfig, WorkContext
 
 
 class Collector(ABC):
@@ -20,24 +21,38 @@ class Collector(ABC):
         ...
 
     @abstractmethod
-    def init_session(self, session_dir: str, observe_config: ObserveConfig) -> None:
+    def init_session(
+        self,
+        session_dir: str,
+        observe_config: ObserveConfig,
+        work_context: Optional[WorkContext] = None,
+    ) -> None:
         """
         会话开始时初始化。
 
         Args:
             session_dir: 当前会话的输出目录
             observe_config: Observe 全局默认配置
+            work_context: 当前任务的工作上下文（含 work_dir 等），可选；采集器需要读工作区文件或推导路径时可使用
         """
         ...
 
     @abstractmethod
-    def collect(self, file_path: str, char_index: int) -> None:
+    def collect(
+        self,
+        relative_path: str,
+        action_index: int,
+        line: int,
+        col: int,
+    ) -> None:
         """
         执行一次采集。
 
         Args:
-            file_path: 当前文件的相对路径
-            char_index: 当前累计输入的字符数
+            relative_path: 当前文件的相对路径
+            action_index: 本次 Observe 在 type_plan.actions 中的索引（0-based）
+            line: 光标所在行（1-based），暂由调用方占位
+            col: 光标所在列（1-based），暂由调用方占位
         """
         ...
 

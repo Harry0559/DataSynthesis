@@ -147,7 +147,7 @@ class JsonlProvider(TaskProvider):
 
         metadata = {
             "source": "jsonl",
-            "jsonl_path": self.jsonl_path,
+            "source_path": os.path.abspath(self.jsonl_path),
             "entry_id": entry_id,
             "index": index,
         }

@@ -206,7 +206,14 @@ class FileChange:
 
 @dataclass
 class ChangeSet:
-    """一次变更的完整描述"""
+    """一次变更的完整描述。
+
+    metadata 约定（由各 TaskProvider 在 _extract_changes 中填充）：
+      - 必须包含：
+        - source: 数据源类型（例如 "git-repo"、"jsonl"）
+        - source_path: 数据源的绝对路径（例如 git 仓库根目录或 JSONL 文件绝对路径）
+      - 其余字段（如 entry_id、commit_id 等）由具体 Provider 自行扩展。
+    """
 
     file_changes: list[FileChange]
     metadata: dict[str, Any] = field(default_factory=dict)

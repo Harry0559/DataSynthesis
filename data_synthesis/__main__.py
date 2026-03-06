@@ -103,6 +103,17 @@ def main():
         help="编辑器适配器类型（当前仅支持: cursor）",
     )
 
+    # 采集（非 dry-run 时生效）
+    collector_group = parser.add_argument_group("采集")
+    collector_group.add_argument(
+        "--collector",
+        type=str,
+        choices=["none", "tab-log"],
+        default="none",
+        metavar="NAME",
+        help="采集方式（默认: none）。tab-log: Tab/Output 日志采集，依赖 editor 的 capture_tab_log",
+    )
+
     # 输出（全新采集时生效；复现时固定为 plan 所在目录/reproduce/）
     output_group = parser.add_argument_group("输出")
     output_group.add_argument(
@@ -183,6 +194,12 @@ def main():
 
     # ========== 组装 Collector ==========
     collector = None
+    if not args.dry_run and args.collector == "tab-log":
+        if editor is None:
+            parser.error("--collector=tab-log 需要启用编辑器，不能使用 --dry-run")
+        from .collectors.tab_log import TabLogCollector
+
+        collector = TabLogCollector(editor=editor)
 
     # ========== 运行 ==========
     success = run_session(

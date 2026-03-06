@@ -1,8 +1,8 @@
 """
-CursorTabLogCollector：通过 Editor 的 capture_tab_log 捕获 Cursor Tab 日志
+TabLogCollector：跨 IDE 的 Tab/Output 日志采集器
 
-依赖 EditorAdapter.capture_tab_log(current_file_abs_path) 获取模型输出，
-将约定格式的 record 追加到 session 目录下的 collected.jsonl。
+依赖注入的 EditorAdapter.capture_tab_log(current_file_abs_path) 获取模型/补全日志，
+具体日志来源与解析由各 Editor 子类实现；本采集器仅按约定格式写入 session 目录下 collected.jsonl。
 """
 
 import json
@@ -17,8 +17,8 @@ from .base import Collector
 COLLECTED_JSONL_FILENAME = "collected.jsonl"
 
 
-class CursorTabLogCollector(Collector):
-    """通过 Editor 触发 Cursor 保存 Tab 日志并解析的采集器"""
+class TabLogCollector(Collector):
+    """通过 Editor 的 capture_tab_log 获取模型/补全日志并写入 session jsonl 的采集器，与具体 IDE 无关。"""
 
     def __init__(self, editor: EditorAdapter) -> None:
         self._editor = editor
@@ -29,7 +29,7 @@ class CursorTabLogCollector(Collector):
 
     @property
     def name(self) -> str:
-        return "cursor_tab_log"
+        return "tab_log"
 
     def init_session(
         self,
@@ -76,7 +76,7 @@ class CursorTabLogCollector(Collector):
             "content": content,
             "model_output": model_output,
             "timestamp": timestamp,
-            "format": "cursor_tab_log/v1",
+            "format": "tab_log/v1",
             "extra": {},
         }
         output_path = os.path.join(self._session_dir, COLLECTED_JSONL_FILENAME)

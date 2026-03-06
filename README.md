@@ -35,7 +35,7 @@ data_synthesis/
 ├── providers/      # 数据源（git_repo / jsonl / plan_file）
 ├── strategies/     # 加工策略（diff_replay / batch）
 ├── executors/      # 执行器
-├── collectors/     # 采集器（cursor_tab_log）
+├── collectors/     # 采集器（tab_log）
 ├── editors/        # IDE 适配（cursor）
 ├── platform/       # OS 适配（darwin / linux / windows）
 ├── git/            # Git 操作
@@ -52,6 +52,6 @@ data_synthesis/
 - [ ] JsonlProvider（从 JSONL 提取）
 - [ ] PlanStrategy 实现（diff_replay / batch）
 - [ ] CursorAdapter（Cursor IDE 适配）
-- [ ] CursorTabLogCollector（日志采集）
+- [ ] TabLogCollector（Tab/Output 日志采集，跨 IDE）
 - [ ] Platform 实现（darwin / linux / windows）
 - [ ] 配置系统（YAML 加载）

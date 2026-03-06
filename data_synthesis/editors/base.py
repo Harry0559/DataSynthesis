@@ -57,3 +57,21 @@ class EditorAdapter(ABC):
             配置正确返回 True，否则返回 False
         """
         ...
+
+    def capture_tab_log(self, current_file_abs_path: str) -> str:
+        """
+        捕获当前 Tab/补全日志并解析出模型输出。
+
+        依赖 IDE 的 Output 面板与保存行为，非所有编辑器均支持。
+        子类若支持则重写此方法；否则调用时抛出 NotImplementedError。
+
+        Args:
+            current_file_abs_path: 当前打开文件的绝对路径，用于推导日志保存路径等。
+
+        Returns:
+            解析得到的模型输出文本。
+
+        Raises:
+            NotImplementedError: 本编辑器不支持 Tab 日志捕获时。
+        """
+        raise NotImplementedError(f"{self.name} 不支持 Tab 日志捕获")

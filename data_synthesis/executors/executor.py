@@ -19,7 +19,6 @@ from ..core.models import (
     ObserveConfig,
     TypeAction,
     TypePlan,
-    WorkContext,
 )
 from ..editors.base import EditorAdapter
 

@@ -1,7 +1,7 @@
 """
 PlanStrategy 抽象基类
 
-加工策略：从 ChangeSet 生成 TypePlan。
+输入重放策略：从 ChangeSet 生成 TypePlan。
 这是关键扩展点——不同策略决定如何将文件变更转化为具体的操作序列。
 """
 
@@ -11,7 +11,7 @@ from ..core.models import ChangeSet, ObserveConfig, TypePlan
 
 
 class PlanStrategy(ABC):
-    """加工策略抽象基类"""
+    """输入重放策略抽象基类"""
 
     @property
     @abstractmethod

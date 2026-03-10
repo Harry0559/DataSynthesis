@@ -17,48 +17,39 @@ from ..collectors.base import Collector
 from ..editors.base import EditorAdapter
 from ..executors.executor import Executor
 from ..providers.base import TaskProvider
-from .models import ObserveConfig, TypePlan, WorkContext
+from .models import SessionConfig, TypePlan, WorkContext
 
 
 def run_session(
     task_provider: TaskProvider,
+    config: SessionConfig,
     editor: Optional[EditorAdapter] = None,
     collector: Optional[Collector] = None,
-    observe_config: Optional[ObserveConfig] = None,
-    type_interval: float = 0.05,
-    vi_mode: bool = False,
-    dry_run: bool = False,
-    output_dir: str = "output/collected",
 ) -> bool:
     """
     执行一次完整的 Pipeline。
 
     Args:
         task_provider: 任务提供者（负责数据源处理 + 环境管理）
-        editor: 编辑器适配器（dry-run 模式可为 None）
-        collector: 采集器（可选，None 时不采集）
-        observe_config: Observe 全局配置（None 时使用 TypePlan 中的配置）
-        type_interval: 字符输入间隔（秒）
-        vi_mode: 是否启用 Vi 模式
-        dry_run: 是否为 dry-run 模式（不实际操作编辑器）
-        output_dir: 输出根目录（全新采集时为默认 output/collected；复现时为 plan 所在目录/reproduce）
+        config: 运行配置（执行参数、输出路径等）
+        editor: 编辑器适配器（dry-run 时可为 None）
+        collector: 采集器（None 时不采集）
 
     Returns:
         是否成功
     """
-    if not dry_run and editor is None:
+    if not config.dry_run and editor is None:
         raise ValueError("非 dry-run 时需提供 EditorAdapter")
 
     print("\n" + "=" * 50)
     print("DataSynthesis Pipeline")
     print("=" * 50)
 
-    # ====== 阶段一 + 阶段二：获取任务（含环境准备） ======
+    # ====== 阶段一：获取任务（含环境准备） ======
     with task_provider.provide() as task:
         type_plan = task.type_plan
         context = task.context
-
-        effective_observe_config = observe_config or type_plan.observe_config
+        observe_config = type_plan.observe_config
 
         print(f"\n[阶段一] 任务就绪")
         print(f"  工作目录: {context.work_dir}")
@@ -67,7 +58,7 @@ def run_session(
 
         # ====== 阶段二：准备编辑器 ======
         print(f"\n[阶段二] 准备编辑器环境")
-        if not dry_run:
+        if not config.dry_run:
             editor.restart(context.work_dir)  # type: ignore[union-attr]
         else:
             print("  (dry-run: 跳过编辑器操作)")
@@ -76,24 +67,25 @@ def run_session(
         print(f"\n[阶段三] 开始执行")
 
         session_dir: Optional[str] = None
-        if not dry_run:
-            session_dir = _create_session_dir(output_dir, type_plan, context)
+        if not config.dry_run:
+            session_dir = _create_session_dir(
+                config.output_dir, type_plan, context
+            )
             _save_session_meta(session_dir, type_plan, context)
             type_plan.to_json(os.path.join(session_dir, "type_plan.json"))
             print(f"  输出目录: {session_dir}")
 
         if collector and session_dir:
             collector.init_session(
-                session_dir, effective_observe_config, work_context=context
+                session_dir, observe_config, work_context=context
             )
 
         executor = Executor(
             editor=editor,
             collector=collector,
-            observe_config=effective_observe_config,
-            type_interval=type_interval,
-            vi_mode=vi_mode,
-            dry_run=dry_run,
+            observe_config=observe_config,
+            type_interval=config.type_interval,
+            dry_run=config.dry_run,
         )
         executor.execute(type_plan)
 
@@ -126,7 +118,7 @@ def _create_session_dir(
 
     - 当 context 带 source_type / source_path_segments 时：
       output_dir / source_type / seg1 / seg2 / session_YYYYMMDD_HHMMSS
-    - 否则（如复现）：output_dir / session_YYYYMMDD_HHMMSS
+    - 否则：output_dir / session_YYYYMMDD_HHMMSS
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if context.source_type and context.source_path_segments:

@@ -13,7 +13,7 @@ from .base import PlanStrategy
 
 
 class DiffReplayStrategy(PlanStrategy):
-    """逐步重放 diff 的加工策略"""
+    """逐步重放 diff 的输入重放策略"""
 
     def __init__(self, observe_every: int = 5):
         self.observe_every = observe_every

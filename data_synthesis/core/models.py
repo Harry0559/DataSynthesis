@@ -7,6 +7,7 @@
 - FileInitState, ObserveConfig
 - WorkContext, Task
 - FileChange, ChangeSet
+- SessionConfig
 """
 
 import json
@@ -90,12 +91,24 @@ class ObserveConfig:
 
 
 @dataclass
+class SessionConfig:
+    """run_session 的运行配置，封装执行/输出等可扩展参数。
+
+    新增配置项只需在此添加字段，run_session 签名无需变动。
+    """
+
+    type_interval: float = 0.05
+    dry_run: bool = False
+    output_dir: str = "output/collected"
+
+
+@dataclass
 class WorkContext:
     """已就绪的工作环境（由 TaskProvider 准备好后交出）"""
 
     work_dir: str
     file_paths: dict[str, str] = field(default_factory=dict)
-    # 用于 session 输出路径分层：由 Provider 按数据源类型约定填充，复现时为 None
+    # 用于 session 输出路径分层：由 Provider 按数据源类型约定填充，无则为 None
     source_type: Optional[str] = None  # 例如 "git-repo"、"jsonl" 等，由 Provider 约定
     source_path_segments: Optional[Sequence[str]] = None  # 例如 ("repo_name", "commit_id")
 

@@ -21,7 +21,7 @@ python -m data_synthesis --load-plan examples/sample_plan.json --dry-run
 
 - **TypePlan**：统一中间格式，描述"文件初始状态 + 有序操作链"，可序列化为 JSON
 - **TaskProvider**：处理数据源 + 生成计划 + 管理环境（准备/恢复）
-- **PlanStrategy**：可插拔的加工策略（将文件变更转为操作序列）
+- **PlanStrategy**：可插拔的输入重放策略（将文件变更转为操作序列）
 - **Executor**：按操作序列驱动编辑器（Type / Delete / Observe）
 - **Collector**：在 Observe 点采集数据（日志、截图等）
 - **EditorAdapter**：IDE 适配层（Cursor / VSCode / ...）
@@ -33,7 +33,7 @@ python -m data_synthesis --load-plan examples/sample_plan.json --dry-run
 data_synthesis/
 ├── core/           # 数据结构 + 编排 + 配置
 ├── providers/      # 数据源（git_repo / jsonl / plan_file）
-├── strategies/     # 加工策略（diff_replay / batch）
+├── strategies/     # 输入重放策略（diff_replay / batch）
 ├── executors/      # 执行器
 ├── collectors/     # 采集器（tab_log）
 ├── editors/        # IDE 适配（cursor）

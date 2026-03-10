@@ -18,7 +18,7 @@ class Config:
     jsonl_path: Optional[str] = None
     plan_path: Optional[str] = None
 
-    # 加工策略
+    # 输入重放策略
     strategy: str = "diff_replay"
     observe_every: int = 5
 

@@ -1,214 +1,195 @@
 """
 DataSynthesis CLI 入口
 
-运行模式互斥，例如：
-  - 全新采集：指定数据源 --source（如 git-repo、jsonl 等）+ --source-path
-  - 复现：指定 plan 文件 --plan，输出写入 plan 所在目录下的 reproduce/ 子目录
+用法：
+  python -m data_synthesis --source jsonl --source-path <file> --strategy diff-hunk [选项]
+
+完整参数见 --help。
 """
 
 import argparse
-import os
 import sys
 
+from .core.models import SessionConfig
 from .core.session import run_session
-from .providers.plan_file import PlanFileProvider
-from .providers.git_repo import GitRepoProvider
 from .providers.jsonl import JsonlProvider
 from .strategies import DiffHunkStrategy
 
-REPRODUCE_SUBDIR = "reproduce"
 
-
-def main():
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="DataSynthesis - 跨 IDE 代码输入模拟与数据采集工具",
+        description="DataSynthesis — 代码输入模拟与模型输出采集工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-运行模式（互斥，例如）:
-  - 全新采集：--source git-repo --source-path /path/to/repo
-             或 --source jsonl --source-path /path/to/file.jsonl
-  - 复现：   --plan /path/to/type_plan.json（输出到 plan 所在目录/reproduce/）
-
 示例:
-  python -m data_synthesis --source git-repo --source-path ./my-repo --dry-run
-  python -m data_synthesis --source jsonl --source-path ./input.jsonl --strategy diff-hunk --dry-run
-  python -m data_synthesis --plan output/collected/git-repo/repo1/abc1234/session_xxx/type_plan.json --dry-run
+  # dry-run 验证（不启动编辑器，无需指定 --editor 和 --collector）
+  python -m data_synthesis \\
+      --source jsonl --source-path input/jsonl/test.jsonl \\
+      --strategy diff-hunk --dry-run
+
+  # 实机执行 + 日志采集
+  python -m data_synthesis \\
+      --source jsonl --source-path input/jsonl/test.jsonl \\
+      --strategy diff-hunk --editor cursor --collector tab-log
+
+  # 指定样本索引
+  python -m data_synthesis \\
+      --source jsonl --source-path input/jsonl/test.jsonl \\
+      --strategy diff-hunk --editor cursor --collector none \\
+      --sample-index 3
 """,
     )
 
-    # 模式与数据源（与 --plan 互斥）
-    source_group = parser.add_argument_group("模式与数据源")
-    source_group.add_argument(
+    # ── 数据源 ──
+    src = parser.add_argument_group("数据源")
+    src.add_argument(
         "--source",
-        type=str,
-        choices=["git-repo", "jsonl"],
+        required=True,
+        choices=["jsonl"],
         metavar="TYPE",
-        help="数据源类型（如 git-repo、jsonl 等）",
+        help="数据源类型（必填）",
     )
-    source_group.add_argument(
+    src.add_argument(
         "--source-path",
-        type=str,
+        required=True,
         metavar="PATH",
-        help="数据源路径（仓库目录或 JSONL 文件路径）",
-    )
-    source_group.add_argument(
-        "--strategy",
-        type=str,
-        choices=["diff-hunk"],
-        metavar="NAME",
-        help="当 --source=jsonl 时使用的计划策略（当前支持: diff-hunk）",
-    )
-    source_group.add_argument(
-        "--plan",
-        type=str,
-        metavar="PATH",
-        help="复现模式：指定 type_plan.json 路径，输出写入该文件所在目录/reproduce/",
+        help="数据源路径（必填）",
     )
 
-    # JSONL 样本选择（仅在 --source=jsonl 时生效）
-    jsonl_group = parser.add_argument_group("JSONL 样本选择（仅 --source=jsonl 时生效）")
-    jsonl_group.add_argument(
+    # ── 数据源 / JSONL 参数 ──
+    jsonl = parser.add_argument_group("数据源 / JSONL 参数")
+    jsonl.add_argument(
         "--sample-index",
         type=int,
         metavar="IDX",
-        help="JSONL 样本索引（0-base）；指定时优先于 random_seed",
+        help="样本索引（0-base，优先于 --random-seed）",
     )
-    jsonl_group.add_argument(
+    jsonl.add_argument(
         "--random-seed",
         type=int,
         metavar="SEED",
-        help="在未指定 sample_index 时，用于可复现地随机选择样本",
+        help="随机选择样本的种子",
     )
 
-    # 执行
-    exec_group = parser.add_argument_group("执行")
-    exec_group.add_argument(
+    # ── 输入重放策略 ──
+    strat = parser.add_argument_group("输入重放策略")
+    strat.add_argument(
+        "--strategy",
+        required=True,
+        choices=["diff-hunk"],
+        metavar="NAME",
+        help="TypePlan 生成策略（必填）",
+    )
+
+    # ── 编辑器 ──
+    ed = parser.add_argument_group("编辑器")
+    ed.add_argument(
+        "--editor",
+        choices=["cursor"],
+        metavar="NAME",
+        help="编辑器类型（非 dry-run 时必填）",
+    )
+
+    # ── 采集器 ──
+    col = parser.add_argument_group("采集器")
+    col.add_argument(
+        "--collector",
+        choices=["none", "tab-log"],
+        metavar="NAME",
+        help="采集方式（非 dry-run 时必填）",
+    )
+
+    # ── 执行配置 ──
+    exe = parser.add_argument_group("执行配置")
+    exe.add_argument(
         "--dry-run",
         action="store_true",
-        help="dry-run 模式（不操作编辑器，只打印操作日志）",
+        help="仅打印操作日志，不驱动编辑器",
     )
-    exec_group.add_argument(
+    exe.add_argument(
         "--type-interval",
         type=float,
         default=0.05,
         metavar="SEC",
         help="字符输入间隔秒数（默认: 0.05）",
     )
-    exec_group.add_argument(
-        "--editor",
-        type=str,
-        choices=["cursor"],
-        default="cursor",
-        metavar="NAME",
-        help="编辑器适配器类型（当前仅支持: cursor）",
-    )
 
-    # 采集（非 dry-run 时生效）
-    collector_group = parser.add_argument_group("采集")
-    collector_group.add_argument(
-        "--collector",
-        type=str,
-        choices=["none", "tab-log"],
-        default="none",
-        metavar="NAME",
-        help="采集方式（默认: none）。tab-log: Tab/Output 日志采集，依赖 editor 的 capture_tab_log",
-    )
-
-    # 输出（全新采集时生效；复现时固定为 plan 所在目录/reproduce/）
-    output_group = parser.add_argument_group("输出")
-    output_group.add_argument(
+    # ── 输出配置 ──
+    out = parser.add_argument_group("输出配置")
+    out.add_argument(
         "--output-dir",
-        type=str,
         default="output/collected",
         metavar="DIR",
-        help="全新采集时的输出根目录（默认: output/collected）；复现时忽略",
+        help="输出根目录（默认: output/collected）",
     )
 
-    args = parser.parse_args()
+    return parser
 
-    # ========== 模式互斥校验 ==========
-    has_source = args.source is not None and args.source_path is not None
-    has_plan = args.plan is not None
 
-    if has_source and has_plan:
-        parser.error("不能同时指定 --source/--source-path 与 --plan，请只指定其中一种")
-    if not has_source and not has_plan:
-        parser.error(
-            "需指定数据源或复现用的 plan："
-            "  --source TYPE --source-path PATH  或  --plan PATH"
-        )
-    if has_source and (args.source is None or args.source_path is None):
-        parser.error("使用全新采集时需同时指定 --source 和 --source-path")
+def _validate(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.sample_index is not None and args.sample_index < 0:
-        parser.error("--sample-index 必须为非负整数（0-base 索引）")
-    if has_source and args.source == "jsonl" and args.strategy is None:
-        parser.error("--source=jsonl 时必须指定 --strategy（当前仅支持: diff-hunk）")
+        parser.error("--sample-index 必须为非负整数")
 
-    # ========== 组装 TaskProvider 与 output_dir ==========
-    if has_plan:
-        task_provider = PlanFileProvider(plan_path=args.plan)
-        output_dir = os.path.join(
-            os.path.dirname(os.path.abspath(args.plan)), REPRODUCE_SUBDIR
-        )
-    else:
-        from .strategies.base import PlanStrategy
-
-        class _PlaceholderStrategy(PlanStrategy):
-            @property
-            def name(self) -> str:
-                return "placeholder"
-
-            def generate(self, change_set, observe_config):
-                raise NotImplementedError(
-                    f"{args.source} 数据源尚未实现，请实现对应 Provider 与 PlanStrategy"
-                )
-
-        if args.source == "git-repo":
-            task_provider = GitRepoProvider(
-                repo_path=args.source_path,
-                plan_strategy=_PlaceholderStrategy(),
-            )
-        else:  # jsonl
-            # 当前仅支持 diff-hunk 策略
-            plan_strategy = DiffHunkStrategy()
-            task_provider = JsonlProvider(
-                jsonl_path=args.source_path,
-                plan_strategy=plan_strategy,
-                sample_index=args.sample_index,
-                random_seed=args.random_seed,
-            )
-        output_dir = args.output_dir
-
-    # ========== 组装 Editor ==========
-    editor = None
     if not args.dry_run:
-        # 根据 CLI 选择编辑器类型，并为其注入默认 PlatformHandler
-        if args.editor == "cursor":
-            from .platform import create_default_platform
-            from .editors.cursor import CursorAdapter
+        if args.editor is None:
+            parser.error("非 dry-run 模式下必须指定 --editor")
+        if args.collector is None:
+            parser.error("非 dry-run 模式下必须指定 --collector")
 
-            platform = create_default_platform()
-            editor = CursorAdapter(platform=platform)
-        else:
-            parser.error(f"未知的编辑器类型: {args.editor}")
 
-    # ========== 组装 Collector ==========
-    collector = None
-    if not args.dry_run and args.collector == "tab-log":
-        if editor is None:
-            parser.error("--collector=tab-log 需要启用编辑器，不能使用 --dry-run")
+def _build_task_provider(args: argparse.Namespace):
+    if args.source == "jsonl":
+        strategy = {"diff-hunk": DiffHunkStrategy}[args.strategy]()
+        return JsonlProvider(
+            jsonl_path=args.source_path,
+            plan_strategy=strategy,
+            sample_index=args.sample_index,
+            random_seed=args.random_seed,
+        )
+    raise ValueError(f"未支持的数据源类型: {args.source}")
+
+
+def _build_editor(args: argparse.Namespace):
+    if args.dry_run or args.editor is None:
+        return None
+    if args.editor == "cursor":
+        from .platform import create_default_platform
+        from .editors.cursor import CursorAdapter
+
+        return CursorAdapter(platform=create_default_platform())
+    raise ValueError(f"未支持的编辑器类型: {args.editor}")
+
+
+def _build_collector(args: argparse.Namespace, editor):
+    if args.dry_run or args.collector is None or args.collector == "none":
+        return None
+    if args.collector == "tab-log":
         from .collectors.tab_log import TabLogCollector
 
-        collector = TabLogCollector(editor=editor)
+        return TabLogCollector(editor=editor)
+    raise ValueError(f"未支持的采集器类型: {args.collector}")
 
-    # ========== 运行 ==========
-    success = run_session(
-        task_provider=task_provider,
-        editor=editor,
-        collector=collector,
+
+def main():
+    parser = _build_parser()
+    args = parser.parse_args()
+    _validate(parser, args)
+
+    task_provider = _build_task_provider(args)
+    editor = _build_editor(args)
+    collector = _build_collector(args, editor)
+
+    config = SessionConfig(
         type_interval=args.type_interval,
         dry_run=args.dry_run,
-        output_dir=output_dir,
+        output_dir=args.output_dir,
+    )
+
+    success = run_session(
+        task_provider=task_provider,
+        config=config,
+        editor=editor,
+        collector=collector,
     )
 
     if not success:

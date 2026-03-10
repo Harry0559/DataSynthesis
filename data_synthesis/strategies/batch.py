@@ -12,7 +12,7 @@ from .base import PlanStrategy
 
 
 class BatchStrategy(PlanStrategy):
-    """按批次输入的加工策略"""
+    """按批次输入的输入重放策略"""
 
     def __init__(self, batch_size: int = 20):
         self.batch_size = batch_size

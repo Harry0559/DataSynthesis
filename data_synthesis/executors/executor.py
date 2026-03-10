@@ -73,14 +73,12 @@ class Executor:
         collector: Optional[Collector] = None,
         observe_config: Optional[ObserveConfig] = None,
         type_interval: float = 0.05,
-        vi_mode: bool = False,
         dry_run: bool = False,
     ):
         self.editor = editor
         self.collector = collector
         self.observe_config = observe_config or ObserveConfig()
         self.type_interval = type_interval
-        self.vi_mode = vi_mode
         self.dry_run = dry_run
 
     def execute(self, type_plan: TypePlan) -> None:

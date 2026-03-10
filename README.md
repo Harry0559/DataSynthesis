@@ -54,4 +54,3 @@ data_synthesis/
 - [ ] CursorAdapter（Cursor IDE 适配）
 - [ ] TabLogCollector（Tab/Output 日志采集，跨 IDE）
 - [ ] Platform 实现（darwin / linux / windows）
-- [ ] 配置系统（YAML 加载）

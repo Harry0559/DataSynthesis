@@ -140,22 +140,22 @@ class CursorAdapter(EditorAdapter):
             os.remove(log_path)
 
     def _open_output_panel(self) -> None:
-        """用 mod+shift+7 打开 Output 工具栏。"""
+        """用主修饰+Option+Shift+O 打开 Output 工具栏。"""
         mod = self._platform.get_modifier_key()
-        self._platform.send_hotkey(mod, "shift", "7")
+        self._platform.send_hotkey(mod, "option", "shift", "o")
 
     def _open_save_dialog_and_confirm(self) -> None:
-        """用 mod+shift+8 打开保存弹框，再发送回车在默认路径保存默认文件名。"""
+        """用主修饰+Option+Shift+S 打开保存弹框，再发送回车在默认路径保存默认文件名。"""
         mod = self._platform.get_modifier_key()
-        self._platform.send_hotkey(mod, "shift", "8")
-        time.sleep(0.5)
+        self._platform.send_hotkey(mod, "option", "shift", "s")
+        time.sleep(1.0)
         self._platform.send_key("enter")
         time.sleep(0.3)
 
     def _clear_output_panel(self) -> None:
-        """用 mod+shift+9 清空 Output 缓存区。"""
+        """用主修饰+Option+Shift+C 清空 Output 缓存区。"""
         mod = self._platform.get_modifier_key()
-        self._platform.send_hotkey(mod, "shift", "9")
+        self._platform.send_hotkey(mod, "option", "shift", "c")
 
     def _wait_and_read_log(self, log_path: str, timeout: float) -> str:
         """等待日志文件出现并读取其内容，超时返回空字符串。"""

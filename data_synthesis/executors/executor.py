@@ -7,10 +7,15 @@ Executor：按 TypePlan 操控编辑器
 - ObserveAction → 保存文件 + 通知采集器
 
 支持 dry-run 模式（不操作编辑器，只打印日志）。
+
+当启用光标位置采集插件（如 cursor-position-tracker-extension）时，
+可在 Observe 阶段从约定的 JSON 文件中读取真实的光标行/列信息。
 """
 
+import json
+import os
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 from ..collectors.base import Collector
 from ..core.models import (
@@ -21,6 +26,42 @@ from ..core.models import (
     TypePlan,
 )
 from ..editors.base import EditorAdapter
+
+# 与光标位置插件约定的默认位置文件路径（可根据需要调整/抽象为配置）
+CURSOR_POSITION_DEFAULT_PATH = os.path.expanduser("~/.cursor-position-tracker.json")
+
+
+def _fetch_cursor_position_from_file(
+    path: str = CURSOR_POSITION_DEFAULT_PATH,
+) -> Tuple[int, int]:
+    """
+    从本地 JSON 文件读取最新光标位置（1-based line/col）。
+
+    文件格式示例:
+        {
+            "filePath": "/path/to/file.py",
+            "line": 42,
+            "column": 15,
+            "timestamp": "2026-03-10T10:30:00.000Z"
+        }
+
+    读取失败或字段缺失时返回 (0, 0) 作为占位。
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return (0, 0)
+
+    try:
+        line = int(data.get("line", 0))
+        col = int(data.get("column", 0))
+    except (TypeError, ValueError):
+        return (0, 0)
+
+    if line < 0 or col < 0:
+        return (0, 0)
+    return (line, col)
 
 
 class Executor:
@@ -130,7 +171,7 @@ class Executor:
         current_file: Optional[str],
         action_index: int,
     ) -> None:
-        """执行观察采集。line/col 暂用占位 0，待 Executor 维护光标后替换。"""
+        """执行观察采集；尝试从本地光标位置文件读取真实行/列。"""
         if self.dry_run or not self.collector:
             return
 
@@ -144,10 +185,11 @@ class Executor:
         post_wait = self.observe_config.post_wait
 
         time.sleep(pre_wait)
+        line, col = _fetch_cursor_position_from_file()
         self.collector.collect(
             relative_path=current_file or "",
             action_index=action_index,
-            line=0,
-            col=0,
+            line=line,
+            col=col,
         )
         time.sleep(post_wait)

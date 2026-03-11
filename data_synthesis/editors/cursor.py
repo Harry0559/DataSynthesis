@@ -187,7 +187,6 @@ class CursorAdapter(EditorAdapter):
         """
         deadline = time.monotonic() + timeout
         interval = 0.1
-
         last_state: str | None = None
         last_folder: str | None = None
 
@@ -211,8 +210,14 @@ class CursorAdapter(EditorAdapter):
             last_state = state
             last_folder = folder
 
-            if state == expect_state and (expect_folder is None or folder == expect_folder):
-                return
+            if state == expect_state:
+                if expect_folder is None:
+                    return
+                if isinstance(folder, str):
+                    norm_folder = os.path.realpath(os.path.normpath(folder))
+                    norm_expect = os.path.realpath(os.path.normpath(expect_folder))
+                    if norm_folder == norm_expect:
+                        return
 
             time.sleep(interval)
 

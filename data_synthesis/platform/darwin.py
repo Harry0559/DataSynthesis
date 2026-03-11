@@ -178,3 +178,19 @@ class DarwinPlatformHandler(PlatformHandler):
         """使用 AppleScript 关闭应用。"""
         script = f'tell application "{app_name}" to quit'
         subprocess.run(["osascript", "-e", script], check=False)
+
+    def is_app_running(self, app_name: str) -> bool:
+        """
+        使用 AppleScript 判断应用是否仍在运行。
+
+        返回:
+            True 表示有同名进程在运行，False 表示未运行或查询失败。
+        """
+        script = f'tell application "System Events" to (name of processes) contains "{app_name}"'
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip().lower() == "true"

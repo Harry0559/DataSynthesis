@@ -14,6 +14,7 @@ CursorAdapter：Cursor IDE 适配器
 - validate_settings(): 暂未实现
 """
 
+import json
 import os
 import time
 
@@ -22,6 +23,9 @@ from ..platform.base import PlatformHandler
 
 # Cursor Output 面板保存的 Tab 日志默认文件名（含空格）
 CURSOR_TAB_LOG_FILENAME = "Cursor Tab.log"
+
+# Workspace 状态跟踪插件默认输出路径
+WORKSPACE_STATE_PATH = os.path.expanduser("~/.workspace-state.json")
 
 
 class CursorAdapter(EditorAdapter):
@@ -51,11 +55,20 @@ class CursorAdapter(EditorAdapter):
         p.send_hotkey(mod, "r")  # 打开命令面板后输入 F 关闭文件夹
         time.sleep(0.1)
         p.type_char("f")
-        time.sleep(0.5)
-        p.quit_app("Cursor")  # 退出应用
-        time.sleep(2.0)
-        p.open_app_with_folder("Cursor", work_dir_abs)  # 用工作目录重新启动
-        time.sleep(2.0)
+        # 等待 workspace 被关闭（state == "closed"）
+        self._wait_workspace_state(expect_state="closed", expect_folder=None, timeout=10.0)
+
+        # 退出应用并等待进程真正结束
+        p.quit_app("Cursor")
+        p.wait_for_app_exit("Cursor", timeout=10.0)
+
+        # 用工作目录重新启动，并等待 workspace 打开到目标目录
+        p.open_app_with_folder("Cursor", work_dir_abs)
+        self._wait_workspace_state(
+            expect_state="opened",
+            expect_folder=work_dir_abs,
+            timeout=10.0,
+        )
 
     def open_file(self, relative_path: str) -> None:
         """通过 Quick Open (Cmd+P) 打开文件，relative_path 为相对路径。"""
@@ -155,6 +168,59 @@ class CursorAdapter(EditorAdapter):
         """用主修饰+Option+Shift+C 清空 Output 缓存区。"""
         mod = self._platform.get_modifier_key()
         self._platform.send_hotkey(mod, "option", "shift", "c")
+
+    def _wait_workspace_state(
+        self,
+        expect_state: str,
+        expect_folder: str | None,
+        timeout: float,
+    ) -> None:
+        """轮询 workspace-state.json，直到满足期望状态或超时。
+
+        约定：
+        - 文件由 workspace-state-tracker 插件写入，schemaVersion 必须为 2。
+        - 仅接受 editor == "cursor" 的记录。
+        - expect_state: "closed" 或 "opened"。
+        - 当 expect_state == "opened" 且 expect_folder 非空时，会额外校验 folder 是否等于该路径。
+
+        若在超时时间内未满足期望状态，则抛出 RuntimeError。
+        """
+        deadline = time.monotonic() + timeout
+        interval = 0.1
+
+        last_state: str | None = None
+        last_folder: str | None = None
+
+        while time.monotonic() < deadline:
+            try:
+                with open(WORKSPACE_STATE_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                time.sleep(interval)
+                continue
+
+            if data.get("schemaVersion") != 2:
+                time.sleep(interval)
+                continue
+            if data.get("editor") != "cursor":
+                time.sleep(interval)
+                continue
+
+            state = data.get("state")
+            folder = data.get("folder")
+            last_state = state
+            last_folder = folder
+
+            if state == expect_state and (expect_folder is None or folder == expect_folder):
+                return
+
+            time.sleep(interval)
+
+        raise RuntimeError(
+            "_wait_workspace_state timeout: "
+            f"expected state={expect_state!r}, folder={expect_folder!r}, "
+            f"last seen state={last_state!r}, folder={last_folder!r}"
+        )
 
     def _wait_and_read_log(self, log_path: str, timeout: float) -> str:
         """等待日志文件出现并读取其内容，超时返回空字符串。"""

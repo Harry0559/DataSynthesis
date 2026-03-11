@@ -45,11 +45,8 @@ class ForwardDeleteAction:
 
 @dataclass
 class ObserveAction:
-    """停顿观察：通知采集器做一次采集，可选覆盖全局配置"""
+    """停顿观察：表示在此处做一次采集。行为统一由 ObserveConfig（或 CLI）控制，无 per-action 覆盖。"""
 
-    timeout: Optional[float] = None
-    retry_count: Optional[int] = None
-    pre_wait: Optional[float] = None
     type: Literal["observe"] = field(default="observe", init=False)
 
 
@@ -82,11 +79,15 @@ class FileFinalState:
 
 @dataclass
 class ObserveConfig:
-    """Observe 全局默认配置"""
+    """Observe 全局配置，所有 ObserveAction 共用；可由 CLI 覆盖（当前未提供）。"""
 
+    # 预留：未来可在 Collector/Executor 中用于单次采集超时（如轮询日志文件的上限）
     timeout: float = 2.0
+    # 预留：未来可在采集失败时重试次数
     retry_count: int = 1
+    # Executor 在 save_file 后、调用 collect 前 sleep 的秒数
     pre_wait: float = 0.1
+    # Executor 在 collect 完成后、继续下一动作前 sleep 的秒数
     post_wait: float = 0.1
 
 
@@ -256,14 +257,7 @@ def _action_to_dict(action: Action) -> dict[str, Any]:
             "count": action.count,
         }
     elif isinstance(action, ObserveAction):
-        d: dict[str, Any] = {"type": "observe"}
-        if action.timeout is not None:
-            d["timeout"] = action.timeout
-        if action.retry_count is not None:
-            d["retry_count"] = action.retry_count
-        if action.pre_wait is not None:
-            d["pre_wait"] = action.pre_wait
-        return d
+        return {"type": "observe"}
     else:
         raise ValueError(f"未知的 Action 类型: {type(action)}")
 
@@ -286,10 +280,6 @@ def _action_from_dict(data: dict[str, Any]) -> Action:
             count=data["count"],
         )
     elif action_type == "observe":
-        return ObserveAction(
-            timeout=data.get("timeout"),
-            retry_count=data.get("retry_count"),
-            pre_wait=data.get("pre_wait"),
-        )
+        return ObserveAction()
     else:
         raise ValueError(f"未知的 Action type: {action_type}")

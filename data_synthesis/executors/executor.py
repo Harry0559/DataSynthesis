@@ -175,11 +175,7 @@ class Executor:
 
         self.editor.save_file()  # type: ignore[union-attr]
 
-        pre_wait = (
-            action.pre_wait
-            if action.pre_wait is not None
-            else self.observe_config.pre_wait
-        )
+        pre_wait = self.observe_config.pre_wait
         post_wait = self.observe_config.post_wait
 
         time.sleep(pre_wait)

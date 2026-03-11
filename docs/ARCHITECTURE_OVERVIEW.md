@@ -72,7 +72,7 @@
   - `TypeAction`：在某文件的 `(line, col)` 输入一段 `content`。
   - `ForwardDeleteAction`：在 `(line, col)` 向后删除若干字符。
   - `ObserveAction`：表示「在这里停一下并采集」。
-- **`observe_config`**：Observe 全局默认配置（`timeout`, `pre_wait`, `post_wait` 等）。
+- **`observe_config`**：Observe 全局配置（`pre_wait`、`post_wait` 当前使用；`timeout`、`retry_count` 预留）。ObserveAction 无额外参数，仅表示观察点。
 - **`metadata`**：来源数据源信息、策略名、随机种子等，主要用于调试和分析。
 
 `TypePlan` 支持 `to_json` / `from_json`，可以持久化到磁盘作为复现依据。

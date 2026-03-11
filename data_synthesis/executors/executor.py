@@ -72,8 +72,8 @@ class Executor:
         editor: Optional[EditorAdapter] = None,
         collector: Optional[Collector] = None,
         observe_config: Optional[ObserveConfig] = None,
-        type_interval: float = 0.02,
-        delete_interval: float = 0.02,
+        type_interval: float = 0.01,
+        delete_interval: float = 0.01,
         dry_run: bool = False,
     ):
         self.editor = editor

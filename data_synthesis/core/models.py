@@ -86,7 +86,7 @@ class ObserveConfig:
     # 预留：未来可在采集失败时重试次数
     retry_count: int = 1
     # Executor 在 save_file 后、调用 collect 前 sleep 的秒数
-    pre_wait: float = 0.05
+    pre_wait: float = 1.5
     # Executor 在 collect 完成后、继续下一动作前 sleep 的秒数
     post_wait: float = 0.05
 
@@ -98,8 +98,8 @@ class SessionConfig:
     新增配置项只需在此添加字段，run_session 签名无需变动。
     """
 
-    type_interval: float = 0.02
-    delete_interval: float = 0.02
+    type_interval: float = 0.01
+    delete_interval: float = 0.01
     dry_run: bool = False
     output_dir: str = "output/collected"
 

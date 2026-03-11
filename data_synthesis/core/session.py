@@ -85,6 +85,7 @@ def run_session(
             collector=collector,
             observe_config=observe_config,
             type_interval=config.type_interval,
+            delete_interval=config.delete_interval,
             dry_run=config.dry_run,
         )
         executor.execute(type_plan)

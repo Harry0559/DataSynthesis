@@ -109,9 +109,16 @@ def _build_parser() -> argparse.ArgumentParser:
     exe.add_argument(
         "--type-interval",
         type=float,
-        default=0.05,
+        default=0.02,
         metavar="SEC",
-        help="字符输入间隔秒数（默认: 0.05）",
+        help="字符输入间隔秒数（默认: 0.02）",
+    )
+    exe.add_argument(
+        "--delete-interval",
+        type=float,
+        default=0.02,
+        metavar="SEC",
+        help="字符删除间隔秒数（默认: 0.02）",
     )
 
     # ── 输出配置 ──
@@ -181,6 +188,7 @@ def main():
 
     config = SessionConfig(
         type_interval=args.type_interval,
+        delete_interval=args.delete_interval,
         dry_run=args.dry_run,
         output_dir=args.output_dir,
     )

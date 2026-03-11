@@ -72,13 +72,15 @@ class Executor:
         editor: Optional[EditorAdapter] = None,
         collector: Optional[Collector] = None,
         observe_config: Optional[ObserveConfig] = None,
-        type_interval: float = 0.05,
+        type_interval: float = 0.02,
+        delete_interval: float = 0.02,
         dry_run: bool = False,
     ):
         self.editor = editor
         self.collector = collector
         self.observe_config = observe_config or ObserveConfig()
         self.type_interval = type_interval
+        self.delete_interval = delete_interval
         self.dry_run = dry_run
 
     def execute(self, type_plan: TypePlan) -> None:
@@ -150,18 +152,16 @@ class Executor:
         self.editor.goto(line, col)  # type: ignore[union-attr]
 
     def _type_chars(self, content: str) -> None:
-        """逐字输入"""
+        """逐字输入，间隔由 editor 控制"""
         if self.dry_run:
             return
-        for char in content:
-            self.editor.type_char(char)  # type: ignore[union-attr]
-            time.sleep(self.type_interval)
+        self.editor.type_chars(content, interval=self.type_interval)  # type: ignore[union-attr]
 
     def _delete_chars_forward(self, count: int) -> None:
-        """在光标位置向后删除 count 个字符"""
+        """在光标位置向后删除 count 个字符，间隔由 editor 控制"""
         if self.dry_run:
             return
-        self.editor.delete_chars_forward(count)  # type: ignore[union-attr]
+        self.editor.delete_chars_forward(count, interval=self.delete_interval)  # type: ignore[union-attr]
 
     def _observe(
         self,

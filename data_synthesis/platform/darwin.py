@@ -7,7 +7,6 @@ macOS 平台实现
 """
 
 import subprocess
-import time
 
 from .base import PlatformHandler
 
@@ -166,20 +165,16 @@ class DarwinPlatformHandler(PlatformHandler):
     def activate_window(self, app_name: str) -> None:
         """使用 open -a 激活指定应用窗口。"""
         subprocess.run(["open", "-a", app_name], check=False)
-        time.sleep(0.5)
 
     def open_app_with_folder(self, app_name: str, folder_path: str) -> None:
         """使用 open -a 启动应用并打开指定目录。"""
         subprocess.run(["open", "-a", app_name, folder_path], check=False)
-        time.sleep(1.0)
 
     def launch_app(self, app_name: str) -> None:
         """使用 open -a 启动应用。"""
         subprocess.run(["open", "-a", app_name], check=False)
-        time.sleep(1.0)
 
     def quit_app(self, app_name: str) -> None:
         """使用 AppleScript 关闭应用。"""
         script = f'tell application "{app_name}" to quit'
         subprocess.run(["osascript", "-e", script], check=False)
-        time.sleep(0.5)

@@ -1,14 +1,16 @@
 """
 CursorAdapter：Cursor IDE 适配器
 
+所有 time.sleep 均由 Editor 层控制，PlatformHandler 只负责发送命令。
+
 - restart(): 关闭文件夹 → 退出 Cursor → 启动 Cursor → 打开工作目录
 - open_file(relative_path): 通过 Quick Open (Cmd+P) 打开文件，入参为相对路径
 - goto(): 通过 Quick Open 输入 ":line:col" 定位
 - type_char(): 透传 Platform 层输入单个字符
-- delete_chars_forward(): 模拟 Delete 键（向后删除），每次间隔 0.03s
+- type_chars(): 批量逐字输入，每字符间隔可配
+- delete_chars_forward(): 模拟 Delete 键（向后删除），每次间隔可配
 - save_file(): Cmd+S
-- capture_tab_log(current_file_abs_path): 打开 Output(mod+shift+7) → 保存(mod+shift+8)
-  → 清空(mod+shift+9) → 读日志并解析后删除，返回模型输出
+- capture_tab_log(current_file_abs_path): 打开 Output → 保存 → 清空 → 读日志并解析后删除，返回模型输出
 - validate_settings(): 暂未实现
 """
 
@@ -41,64 +43,69 @@ class CursorAdapter(EditorAdapter):
         work_dir_abs = os.path.abspath(work_dir)
         p = self._platform
 
-        # 1. 激活 Cursor，确保后续快捷键发到编辑器
         p.activate_window("Cursor")
-        time.sleep(0.3)
+        time.sleep(0.5)
 
-        # 2. 聚焦到编辑器（modifier+1），否则 modifier+R+F 可能无效
         mod = p.get_modifier_key()
         p.send_hotkey(mod, "1")
         time.sleep(0.2)
 
-        # 3. 关闭当前文件夹（Cursor 使用 Cmd+R 再按 F；依赖平台 modifier）
         p.send_hotkey(mod, "r")
         time.sleep(0.2)
         p.type_char("f")
         time.sleep(1.0)
 
-        # 4. 退出 Cursor 进程
         p.quit_app("Cursor")
-        time.sleep(1.0)
+        time.sleep(3.0)
 
-        # 5. 以指定目录启动新实例
         p.open_app_with_folder("Cursor", work_dir_abs)
-        time.sleep(1.0)
+        time.sleep(3.0)
 
-        # 6. 再次激活窗口，确保新实例获得焦点
         p.activate_window("Cursor")
+        time.sleep(0.5)
 
     def open_file(self, relative_path: str) -> None:
         """通过 Quick Open (Cmd+P) 打开文件，relative_path 为相对路径。"""
         p = self._platform
         p.activate_window("Cursor")
-        time.sleep(0.2)
+        time.sleep(0.5)
         p.send_hotkey(p.get_modifier_key(), "p")
-        time.sleep(0.3)
+        time.sleep(0.5)
         for c in relative_path:
             p.type_char(c)
             time.sleep(0.02)
         p.send_key("enter")
+        time.sleep(0.3)
 
     def goto(self, line: int, col: int) -> None:
         """通过 Quick Open 输入 ":line:col" 定位到指定行列。"""
         p = self._platform
+        p.activate_window("Cursor")
+        time.sleep(0.3)
         p.send_hotkey(p.get_modifier_key(), "p")
-        time.sleep(0.2)
+        time.sleep(0.3)
         for c in f":{line}:{col}":
             p.type_char(c)
             time.sleep(0.02)
         p.send_key("enter")
+        time.sleep(0.3)
 
     def type_char(self, char: str) -> None:
         """透传 Platform 层输入单个字符。"""
         self._platform.type_char(char)
 
-    def delete_chars_forward(self, count: int) -> None:
-        """在光标位置向后删除 count 个字符，每次删除间隔 0.03s。"""
+    def type_chars(self, content: str, interval: float = 0.02) -> None:
+        """批量逐字输入，每字符间隔 interval 秒。"""
+        for c in content:
+            self._platform.type_char(c)
+            time.sleep(interval)
+
+    def delete_chars_forward(self, count: int, interval: float = 0.02) -> None:
+        """在光标位置向后删除 count 个字符，每次删除间隔 interval 秒。"""
         p = self._platform
         for _ in range(count):
             p.send_key("forward_delete")
-            time.sleep(0.03)
+            time.sleep(interval)
 
     def save_file(self) -> None:
         """发送 Cmd+S 保存当前文件。"""
@@ -117,13 +124,13 @@ class CursorAdapter(EditorAdapter):
         log_path = self._get_tab_log_path(current_file_abs_path)
         self._ensure_log_deleted(log_path)
         p.activate_window("Cursor")
-        time.sleep(0.3)
+        time.sleep(0.5)
         self._open_output_panel()
         time.sleep(0.5)
         self._open_save_dialog_and_confirm()
         time.sleep(0.5)
         self._clear_output_panel()
-        time.sleep(0.2)
+        time.sleep(0.3)
         raw = self._wait_and_read_log(log_path, timeout=5.0)
         result = self._parse_tab_log(raw)
         self._delete_log(log_path)
@@ -150,7 +157,7 @@ class CursorAdapter(EditorAdapter):
         self._platform.send_hotkey(mod, "option", "shift", "s")
         time.sleep(1.0)
         self._platform.send_key("enter")
-        time.sleep(0.3)
+        time.sleep(0.5)
 
     def _clear_output_panel(self) -> None:
         """用主修饰+Option+Shift+C 清空 Output 缓存区。"""
@@ -159,7 +166,7 @@ class CursorAdapter(EditorAdapter):
 
     def _wait_and_read_log(self, log_path: str, timeout: float) -> str:
         """等待日志文件出现并读取其内容，超时返回空字符串。"""
-        interval = 0.15
+        interval = 0.2
         elapsed = 0.0
         while elapsed < timeout:
             if os.path.isfile(log_path):

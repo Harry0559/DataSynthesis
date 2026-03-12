@@ -12,10 +12,8 @@ Executor：按 TypePlan 操控编辑器
 可在 Observe 阶段从约定的 JSON 文件中读取真实的光标行/列信息。
 """
 
-import json
-import os
 import time
-from typing import Optional, Tuple
+from typing import Optional
 
 from ..collectors.base import Collector
 from ..core.models import (
@@ -26,42 +24,6 @@ from ..core.models import (
     TypePlan,
 )
 from ..editors.base import EditorAdapter
-
-# 与光标位置插件约定的默认位置文件路径（可根据需要调整/抽象为配置）
-CURSOR_POSITION_DEFAULT_PATH = os.path.expanduser("~/.cursor-position-tracker.json")
-
-
-def _fetch_cursor_position_from_file(
-    path: str = CURSOR_POSITION_DEFAULT_PATH,
-) -> Tuple[int, int]:
-    """
-    从本地 JSON 文件读取最新光标位置（1-based line/col）。
-
-    文件格式示例:
-        {
-            "filePath": "/path/to/file.py",
-            "line": 42,
-            "column": 15,
-            "timestamp": "2026-03-10T10:30:00.000Z"
-        }
-
-    读取失败或字段缺失时返回 (0, 0) 作为占位。
-    """
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return (0, 0)
-
-    try:
-        line = int(data.get("line", 0))
-        col = int(data.get("column", 0))
-    except (TypeError, ValueError):
-        return (0, 0)
-
-    if line < 0 or col < 0:
-        return (0, 0)
-    return (line, col)
 
 
 class Executor:
@@ -86,6 +48,8 @@ class Executor:
     def execute(self, type_plan: TypePlan) -> None:
         """按 TypePlan 执行全部操作"""
         current_file: Optional[str] = None
+        cursor_line: int = 0
+        cursor_col: int = 0
         char_index = 0
         total = len(type_plan.actions)
 
@@ -93,37 +57,50 @@ class Executor:
             print("  [Executor] dry-run 模式")
 
         for i, action in enumerate(type_plan.actions):
-            if isinstance(action, TypeAction):
+            # Type / ForwardDelete：需要控制文件和光标
+            if isinstance(action, (TypeAction, ForwardDeleteAction)):
+                # 切换文件
                 if action.file != current_file:
                     self._switch_file(action.file)
                     current_file = action.file
+                    # 切到新文件后重置为非法坐标，确保首个动作一定会 goto
+                    cursor_line = 0
+                    cursor_col = 0
 
-                self._goto(action.line, action.col)
-                self._type_chars(action.content)
-                char_index += len(action.content)
+                # 判断是否需要 goto
+                if (cursor_line, cursor_col) != (action.line, action.col):
+                    self._goto(action.line, action.col)
+                    cursor_line = action.line
+                    cursor_col = action.col
+
+                # 执行动作
+                if isinstance(action, TypeAction):
+                    self._type_chars(action.content)
+                    char_index += len(action.content)
+                else:
+                    delete_count = len(action.content)
+                    self._delete_chars_forward(delete_count)
+
+                # 由动作自身计算执行后的光标位置
+                end_line, end_col = action.get_end_cursor()
+                cursor_line, cursor_col = end_line, end_col
 
                 if self.dry_run:
-                    print(
-                        f"  [{i + 1}/{total}] Type → {action.file}:{action.line}:{action.col} "
-                        f"输入 {action.content!r} ({len(action.content)} 字符)"
-                    )
+                    if isinstance(action, TypeAction):
+                        print(
+                            f"  [{i + 1}/{total}] Type → {action.file}:{action.line}:{action.col} "
+                            f"输入 {action.content!r} ({len(action.content)} 字符, "
+                            f"结束于 {cursor_line}:{cursor_col})"
+                        )
+                    else:
+                        print(
+                            f"  [{i + 1}/{total}] ForwardDelete → {action.file}:{action.line}:{action.col} "
+                            f"向后删除 {len(action.content)} 字符, 光标停在 {cursor_line}:{cursor_col}"
+                        )
 
-            elif isinstance(action, ForwardDeleteAction):
-                if action.file != current_file:
-                    self._switch_file(action.file)
-                    current_file = action.file
-
-                self._goto(action.line, action.col)
-                self._delete_chars_forward(action.count)
-
-                if self.dry_run:
-                    print(
-                        f"  [{i + 1}/{total}] ForwardDelete → {action.file}:{action.line}:{action.col} "
-                        f"向后删除 {action.count} 字符"
-                    )
-
+            # Observe：不改变光标，只使用当前状态
             elif isinstance(action, ObserveAction):
-                self._observe(action, current_file, i)
+                self._observe(current_file, i, cursor_line, cursor_col)
 
                 if self.dry_run:
                     collector_info = (
@@ -165,11 +142,12 @@ class Executor:
 
     def _observe(
         self,
-        action: ObserveAction,
         current_file: Optional[str],
         action_index: int,
+        cursor_line: int,
+        cursor_col: int,
     ) -> None:
-        """执行观察采集；尝试从本地光标位置文件读取真实行/列。"""
+        """执行观察采集；使用 Executor 内部维护的光标行列。"""
         if self.dry_run or not self.collector:
             return
 
@@ -179,11 +157,10 @@ class Executor:
         post_wait = self.observe_config.post_wait
 
         time.sleep(pre_wait)
-        line, col = _fetch_cursor_position_from_file()
         self.collector.collect(
             relative_path=current_file or "",
             action_index=action_index,
-            line=line,
-            col=col,
+            line=cursor_line,
+            col=cursor_col,
         )
         time.sleep(post_wait)

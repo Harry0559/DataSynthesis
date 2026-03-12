@@ -30,17 +30,44 @@ class TypeAction:
     content: str
     type: Literal["type"] = field(default="type", init=False)
 
+    def get_end_cursor(self) -> tuple[int, int]:
+        """
+        返回本动作执行完后，光标的行列位置。
+        假设执行前光标已经在 (self.line, self.col)。
+        """
+        line = self.line
+        col = self.col
+        for ch in self.content:
+            if ch == "\n":
+                line += 1
+                col = 1
+            else:
+                col += 1
+        return line, col
+
 
 @dataclass
 class ForwardDeleteAction:
-    """删除动作：在指定位置向后删除若干字符（即 Delete 键）。
-    命名显式为 ForwardDelete，与未来 BackwardDelete（向前删除，Backspace）区分。"""
+    """删除动作：在指定位置向后删除一段文本（即 Delete 键）。
+
+    content 字段表示从 (line, col) 开始、向后被删除的原始文本内容，
+    可包含换行符；对于光标位置而言，Delete 键删除的是“光标之后”的内容，
+    光标本身停留在起始位置不动。
+    """
 
     file: str
     line: int
     col: int
-    count: int
+    content: str
     type: Literal["delete_forward"] = field(default="delete_forward", init=False)
+
+    def get_end_cursor(self) -> tuple[int, int]:
+        """
+        返回本动作执行完后，光标的行列位置。
+        假设执行前光标已经在 (self.line, self.col)。
+        Delete 删除的是光标之后的文本，光标本身不移动。
+        """
+        return self.line, self.col
 
 
 @dataclass
@@ -255,7 +282,7 @@ def _action_to_dict(action: Action) -> dict[str, Any]:
             "file": action.file,
             "line": action.line,
             "col": action.col,
-            "count": action.count,
+            "content": action.content,
         }
     elif isinstance(action, ObserveAction):
         return {"type": "observe"}
@@ -278,7 +305,7 @@ def _action_from_dict(data: dict[str, Any]) -> Action:
             file=data["file"],
             line=data["line"],
             col=data["col"],
-            count=data["count"],
+            content=data["content"],
         )
     elif action_type == "observe":
         return ObserveAction()

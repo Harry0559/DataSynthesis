@@ -144,7 +144,7 @@ class DiffHunkStrategy(PlanStrategy):
                             file=relative_path,
                             line=current_line,
                             col=1,
-                            count=len(old_line),
+                            content=old_line,
                         )
                     )
                 # 删除后，后续行会顶上来，因此 current_line 保持不变

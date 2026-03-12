@@ -161,7 +161,7 @@ class CursorAdapter(EditorAdapter):
         """用主修饰+Option+Shift+S 打开保存弹框，再发送回车在默认路径保存默认文件名。"""
         mod = self._platform.get_modifier_key()
         self._platform.send_hotkey(mod, "option", "shift", "s")
-        time.sleep(0.5)
+        time.sleep(1.0)
         self._platform.send_key("enter")
 
     def _clear_output_panel(self) -> None:

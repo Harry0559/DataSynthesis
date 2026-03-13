@@ -2,7 +2,7 @@
 DataSynthesis CLI 入口
 
 用法：
-  python -m data_synthesis --source jsonl --source-path <file> --strategy diff-hunk [选项]
+  python -m data_synthesis --source jsonl --source-path <file> --strategy <NAME> [选项]
 
 完整参数见 --help。
 """
@@ -13,7 +13,7 @@ import sys
 from .core.models import SessionConfig
 from .core.session import run_session
 from .providers.jsonl import JsonlProvider
-from .strategies import DiffHunkStrategy
+from .strategies import DiffHunkStrategy, SimilarityStrategy
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -76,9 +76,91 @@ def _build_parser() -> argparse.ArgumentParser:
     strat.add_argument(
         "--strategy",
         required=True,
-        choices=["diff-hunk"],
+        choices=["diff-hunk", "similarity"],
         metavar="NAME",
         help="TypePlan 生成策略（必填）",
+    )
+
+    # ── 输入重放策略 / similarity 参数 ──
+    fd = parser.add_argument_group("输入重放策略 / similarity 参数（仅 --strategy similarity 时生效）")
+    fd.add_argument(
+        "--observe-mode",
+        choices=["all", "random", "hunk_end", "every_n"],
+        default="all",
+        metavar="MODE",
+        help="观察模式：all=每个动作后 | random=按概率 | hunk_end=每块末尾 | every_n=每N个动作（默认: all）",
+    )
+    fd.add_argument(
+        "--observe-param",
+        type=float,
+        default=0.3,
+        metavar="VAL",
+        help="观察参数：random 时为概率(0-1)，every_n 时为间隔N（默认: 0.3）",
+    )
+    fd.add_argument(
+        "--similarity-threshold",
+        type=float,
+        default=0.75,
+        metavar="RATIO",
+        help="行匹配 SequenceMatcher.ratio 阈值（默认: 0.75）",
+    )
+    fd.add_argument(
+        "--split-mode",
+        choices=["none", "random", "every_n"],
+        default="none",
+        metavar="MODE",
+        help="similarity 策略的动作拆分模式：none=不拆分 | random=随机拆分 | every_n=每N个字符拆分（默认: none）",
+    )
+    fd.add_argument(
+        "--split-random-prob",
+        type=float,
+        default=0.5,
+        metavar="P",
+        help="split-mode=random 时，继续与前一字符同组的概率，越大每个片段越长（默认: 0.5）",
+    )
+    fd.add_argument(
+        "--split-every-n",
+        type=int,
+        default=0,
+        metavar="N",
+        help="split-mode=every_n 时，每个动作 content 每 N 个字符拆分一次（默认: 0 表示不生效）",
+    )
+    fd.add_argument(
+        "--merge-mode",
+        choices=["none", "random", "full", "batch_n"],
+        default="none",
+        metavar="MODE",
+        help="similarity 策略的动作合并模式：none=不合并 | random=随机合并 | full=尽量合并 | batch_n=每组最多N个（默认: none）",
+    )
+    fd.add_argument(
+        "--merge-random-prob",
+        type=float,
+        default=0.5,
+        metavar="P",
+        help="merge-mode=random 时，在可合并前提下实际合并的概率（默认: 0.5）",
+    )
+    fd.add_argument(
+        "--merge-batch-size",
+        type=int,
+        default=0,
+        metavar="N",
+        help="merge-mode=batch_n 时，单次最多合并的连续动作数（默认: 0 表示不限制）",
+    )
+    fd.add_argument(
+        "--no-observe-after-delete",
+        action="store_true",
+        help="禁用删除动作后的观察（默认: 删除后允许在该动作后插入 ObserveAction）",
+    )
+    fd.add_argument(
+        "--split-merge-order",
+        choices=["none", "split_only", "merge_only", "split_then_merge", "merge_then_split"],
+        default="none",
+        metavar="MODE",
+        help=(
+            "similarity 策略的拆分/合并整体顺序："
+            "none=不拆分不合并 | split_only=仅拆分 | merge_only=仅合并 | "
+            "split_then_merge=先拆分后合并 | merge_then_split=先合并后拆分（默认: none）"
+        ),
     )
 
     # ── 编辑器 ──
@@ -146,7 +228,25 @@ def _validate(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None
 
 def _build_task_provider(args: argparse.Namespace):
     if args.source == "jsonl":
-        strategy = {"diff-hunk": DiffHunkStrategy}[args.strategy]()
+        strategy_map = {
+            "diff-hunk": lambda: DiffHunkStrategy(),
+            "similarity": lambda: SimilarityStrategy(
+                observe_mode=args.observe_mode,
+                observe_param=args.observe_param,
+                similarity_threshold=args.similarity_threshold,
+                split_mode=args.split_mode,
+                split_random_prob=args.split_random_prob,
+                split_every_n=args.split_every_n,
+                merge_mode=args.merge_mode,
+                merge_random_prob=args.merge_random_prob,
+                merge_batch_size=args.merge_batch_size,
+                observe_after_delete=not args.no_observe_after_delete,
+                # 五种整体拆分/合并顺序模式
+                # none / split_only / merge_only / split_then_merge / merge_then_split
+                split_merge_order=args.split_merge_order,
+            ),
+        }
+        strategy = strategy_map[args.strategy]()
         return JsonlProvider(
             jsonl_path=args.source_path,
             plan_strategy=strategy,

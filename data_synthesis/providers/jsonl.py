@@ -28,11 +28,12 @@ import os
 import random
 import tempfile
 from contextlib import contextmanager
-from typing import Generator, Optional
+from pathlib import Path
+from typing import Callable, Generator, Iterator, List, Optional
 
 from ..core.models import ChangeSet, FileChange, ObserveConfig, TypePlan, WorkContext
 from ..strategies.base import PlanStrategy
-from .base import TaskProvider
+from .base import BatchProvider, TaskProvider
 
 
 class JsonlProvider(TaskProvider):
@@ -216,3 +217,68 @@ class JsonlProvider(TaskProvider):
 
             yield context
             print("  临时目录已清理")
+
+
+def _resolve_jsonl_paths(source_path: str) -> List[str]:
+    """根据 source_path 解析 JSONL 文件列表（目录则列出其中的 .jsonl 文件，不递归）。"""
+    p = Path(source_path)
+    if p.is_dir():
+        return sorted(
+            str(child)
+            for child in p.iterdir()
+            if child.is_file() and child.suffix == ".jsonl"
+        )
+    return [str(p)]
+
+
+class JsonlBatchProvider(BatchProvider):
+    """按顺序或随机选取 JSONL 记录的批量 Provider（基于 JsonlProvider）。
+
+    - source_path 为单个文件时处理该文件，为目录时处理其中所有 .jsonl 文件（不递归）。
+    - 每条记录对应一个独立的 JsonlProvider（sample_index 固定）。
+    - 可配置每文件条数上限与是否随机无放回选取。
+    """
+
+    def __init__(
+        self,
+        source_path: str,
+        plan_strategy_factory: Callable[[], PlanStrategy],
+        observe_config: Optional[ObserveConfig] = None,
+        max_items_per_file: Optional[int] = None,
+        random_sample: bool = False,
+    ) -> None:
+        self._jsonl_paths = _resolve_jsonl_paths(source_path)
+        self._plan_strategy_factory = plan_strategy_factory
+        self._observe_config = observe_config
+        self._max_items_per_file = max_items_per_file
+        self._random_sample = random_sample
+
+    def iter_task_providers(self) -> Iterator[TaskProvider]:
+        for path in self._jsonl_paths:
+            # 第一遍：只统计有效行数，不解析、不保存内容，避免大文件占满内存
+            n = 0
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    n += 1
+
+            if n == 0:
+                continue
+
+            limit = n if self._max_items_per_file is None else min(self._max_items_per_file, n)
+
+            if self._random_sample:
+                indices = sorted(random.sample(range(n), limit))
+            else:
+                indices = range(limit)
+
+            for idx in indices:
+                yield JsonlProvider(
+                    jsonl_path=path,
+                    plan_strategy=self._plan_strategy_factory(),
+                    observe_config=self._observe_config,
+                    sample_index=idx,
+                    random_seed=None,
+                )

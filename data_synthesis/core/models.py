@@ -7,7 +7,7 @@
 - FileInitState, ObserveConfig
 - WorkContext, Task
 - FileChange, ChangeSet
-- SessionConfig
+- SessionConfig, BatchConfig
 """
 
 import json
@@ -129,6 +129,16 @@ class SessionConfig:
     delete_interval: float = 0.01
     dry_run: bool = False
     output_dir: str = "output/collected"
+
+
+@dataclass
+class BatchConfig:
+    """批量运行配置：仅负责超时与总次数刹车。"""
+
+    # 整个批量运行的时间上限（秒），None 表示不限制
+    max_duration_seconds: Optional[float] = None
+    # 全局最多执行多少条 pipeline（跨所有文件/数据源），None 表示不限制
+    max_items_total: Optional[int] = None
 
 
 @dataclass

@@ -10,9 +10,10 @@ DataSynthesis CLI 入口
 import argparse
 import sys
 
-from .core.models import SessionConfig
+from .core.batch import run_batch
+from .core.models import BatchConfig, SessionConfig
 from .core.session import run_session
-from .providers.jsonl import JsonlProvider
+from .providers.jsonl import JsonlBatchProvider, JsonlProvider
 from .strategies import DiffHunkStrategy, SimilarityStrategy
 
 
@@ -69,6 +70,17 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         metavar="SEED",
         help="随机选择样本的种子",
+    )
+    jsonl.add_argument(
+        "--batch-max-items-per-file",
+        type=int,
+        metavar="N",
+        help="批量模式下，每个 JSONL 文件最多执行的条目数（默认不限制）",
+    )
+    jsonl.add_argument(
+        "--batch-random-sample",
+        action="store_true",
+        help="批量模式下，每个 JSONL 文件内随机选取条目（无放回）；默认按行序选取",
     )
 
     # ── 输入重放策略 ──
@@ -202,6 +214,23 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="SEC",
         help="字符删除间隔秒数（默认: 0.01）",
     )
+    exe.add_argument(
+        "--batch-mode",
+        action="store_true",
+        help="启用批量模式：遍历数据源的多个条目，按时间/条数/概率配置批量执行 pipeline",
+    )
+    exe.add_argument(
+        "--batch-max-duration",
+        type=float,
+        metavar="SEC",
+        help="批量运行的时间上限（秒），默认不限制；达到上限后在下一条任务开始前停止",
+    )
+    exe.add_argument(
+        "--batch-max-items-total",
+        type=int,
+        metavar="N",
+        help="批量模式下最多执行的 pipeline 条目总数（默认不限制）",
+    )
 
     # ── 输出配置 ──
     out = parser.add_argument_group("输出配置")
@@ -226,27 +255,29 @@ def _validate(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None
             parser.error("非 dry-run 模式下必须指定 --collector")
 
 
+def _build_strategy(args: argparse.Namespace):
+    strategy_map = {
+        "diff-hunk": lambda: DiffHunkStrategy(),
+        "similarity": lambda: SimilarityStrategy(
+            observe_mode=args.observe_mode,
+            observe_param=args.observe_param,
+            similarity_threshold=args.similarity_threshold,
+            split_mode=args.split_mode,
+            split_random_prob=args.split_random_prob,
+            split_every_n=args.split_every_n,
+            merge_mode=args.merge_mode,
+            merge_random_prob=args.merge_random_prob,
+            merge_batch_size=args.merge_batch_size,
+            observe_after_delete=not args.no_observe_after_delete,
+            split_merge_order=args.split_merge_order,
+        ),
+    }
+    return strategy_map[args.strategy]()
+
+
 def _build_task_provider(args: argparse.Namespace):
     if args.source == "jsonl":
-        strategy_map = {
-            "diff-hunk": lambda: DiffHunkStrategy(),
-            "similarity": lambda: SimilarityStrategy(
-                observe_mode=args.observe_mode,
-                observe_param=args.observe_param,
-                similarity_threshold=args.similarity_threshold,
-                split_mode=args.split_mode,
-                split_random_prob=args.split_random_prob,
-                split_every_n=args.split_every_n,
-                merge_mode=args.merge_mode,
-                merge_random_prob=args.merge_random_prob,
-                merge_batch_size=args.merge_batch_size,
-                observe_after_delete=not args.no_observe_after_delete,
-                # 五种整体拆分/合并顺序模式
-                # none / split_only / merge_only / split_then_merge / merge_then_split
-                split_merge_order=args.split_merge_order,
-            ),
-        }
-        strategy = strategy_map[args.strategy]()
+        strategy = _build_strategy(args)
         return JsonlProvider(
             jsonl_path=args.source_path,
             plan_strategy=strategy,
@@ -282,7 +313,6 @@ def main():
     args = parser.parse_args()
     _validate(parser, args)
 
-    task_provider = _build_task_provider(args)
     editor = _build_editor(args)
     collector = _build_collector(args, editor)
 
@@ -293,15 +323,40 @@ def main():
         output_dir=args.output_dir,
     )
 
-    success = run_session(
-        task_provider=task_provider,
-        config=config,
-        editor=editor,
-        collector=collector,
-    )
+    if args.batch_mode:
+        if args.source != "jsonl":
+            parser.error("当前仅 jsonl 数据源支持 --batch-mode")
 
-    if not success:
-        sys.exit(1)
+        batch_provider = JsonlBatchProvider(
+            source_path=args.source_path,
+            plan_strategy_factory=lambda: _build_strategy(args),
+            observe_config=None,
+            max_items_per_file=args.batch_max_items_per_file,
+            random_sample=args.batch_random_sample,
+        )
+
+        batch_config = BatchConfig(
+            max_duration_seconds=args.batch_max_duration,
+            max_items_total=args.batch_max_items_total,
+        )
+
+        run_batch(
+            batch_provider=batch_provider,
+            config=config,
+            editor=editor,
+            collector=collector,
+            batch_config=batch_config,
+        )
+    else:
+        task_provider = _build_task_provider(args)
+        success = run_session(
+            task_provider=task_provider,
+            config=config,
+            editor=editor,
+            collector=collector,
+        )
+        if not success:
+            sys.exit(1)
 
 
 if __name__ == "__main__":

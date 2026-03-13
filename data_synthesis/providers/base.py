@@ -13,7 +13,7 @@ provide() 模板方法自动编排整个流程。
 
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Generator, Optional
+from typing import Generator, Iterator, Optional
 
 from ..core.models import ChangeSet, ObserveConfig, Task, TypePlan, WorkContext
 from ..strategies.base import PlanStrategy
@@ -69,3 +69,12 @@ class TaskProvider(ABC):
 
         with self._manage_environment(type_plan) as work_context:
             yield Task(type_plan=type_plan, context=work_context)
+
+
+class BatchProvider(ABC):
+    """批量任务提供者抽象基类：按数据源约定迭代产生多个 TaskProvider（每个对应一次 pipeline）。"""
+
+    @abstractmethod
+    def iter_task_providers(self) -> Iterator[TaskProvider]:
+        """逐个产出单次 pipeline 的 TaskProvider。"""
+        ...

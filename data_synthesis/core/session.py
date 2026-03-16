@@ -76,8 +76,15 @@ def run_session(
             print(f"  输出目录: {session_dir}")
 
         if collector and session_dir:
+            initial_contents = {
+                f.relative_path: f.content
+                for f in type_plan.file_init_states
+            }
             collector.init_session(
-                session_dir, observe_config, work_context=context
+                session_dir,
+                observe_config,
+                work_context=context,
+                initial_contents=initial_contents,
             )
 
         executor = Executor(

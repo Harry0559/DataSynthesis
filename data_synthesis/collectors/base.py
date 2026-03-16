@@ -6,7 +6,7 @@ Collector 抽象基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Dict, Optional
 
 from ..core.models import ObserveConfig, WorkContext
 
@@ -26,6 +26,7 @@ class Collector(ABC):
         session_dir: str,
         observe_config: ObserveConfig,
         work_context: Optional[WorkContext] = None,
+        initial_contents: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         会话开始时初始化。
@@ -34,6 +35,8 @@ class Collector(ABC):
             session_dir: 当前会话的输出目录
             observe_config: Observe 全局默认配置
             work_context: 当前任务的工作上下文（含 work_dir 等），可选；采集器需要读工作区文件或推导路径时可使用
+            initial_contents: 每个相对路径文件的初始内容（来自 TypePlan.file_init_states），
+                              采集器如需维护「上一次 observe 的文本快照」可用此初始化
         """
         ...
 

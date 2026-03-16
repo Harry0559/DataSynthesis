@@ -26,6 +26,8 @@ class TabLogCollector(Collector):
         self._observe_config = ObserveConfig()
         self._work_context: Optional[WorkContext] = None
         self._collect_count = 0
+        # key: relative_path, value: 上一次 observe 时的完整文本内容
+        self._last_content: dict[str, str] = {}
 
     @property
     def name(self) -> str:
@@ -36,12 +38,15 @@ class TabLogCollector(Collector):
         session_dir: str,
         observe_config: ObserveConfig,
         work_context: Optional[WorkContext] = None,
+        initial_contents: Optional[dict[str, str]] = None,
     ) -> None:
         """保存会话目录与 work_context，并在 session_dir 下创建空 collected.jsonl。"""
         self._session_dir = session_dir
         self._observe_config = observe_config
         self._work_context = work_context
         self._collect_count = 0
+        # 初始化 last_content：若传入初始内容则从此开始，否则为空，首次 observe 时 prev_content 为空串
+        self._last_content = dict(initial_contents or {})
         output_path = os.path.join(session_dir, COLLECTED_JSONL_FILENAME)
         with open(output_path, "w", encoding="utf-8") as _:
             pass
@@ -56,6 +61,10 @@ class TabLogCollector(Collector):
         """读当前文件内容、调 editor.capture_tab_log 获取模型输出，追加一条 record 到 collected.jsonl。"""
         if self._work_context is None:
             return
+
+        # 1. 上一次 observe 时的内容（无则为空串或初始内容）
+        prev_content = self._last_content.get(relative_path, "")
+
         abs_path = self._work_context.file_paths.get(relative_path) or os.path.join(
             self._work_context.work_dir, relative_path
         )
@@ -73,6 +82,7 @@ class TabLogCollector(Collector):
             "action_index": action_index,
             "file": relative_path,
             "cursor": {"line": line, "col": col},
+            "prev_content": prev_content,
             "content": content,
             "model_output": model_output,
             "timestamp": timestamp,
@@ -83,6 +93,9 @@ class TabLogCollector(Collector):
         with open(output_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
         self._collect_count += 1
+
+        # 更新该文件的 last snapshot
+        self._last_content[relative_path] = content
 
     def finalize(self) -> None:
         """打印本会话采集条数。"""

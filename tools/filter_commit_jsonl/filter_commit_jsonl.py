@@ -3,9 +3,9 @@
 
 用法示例：
 
-    python tools/filter_commit_jsonl.py \
-        --input /Users/fe/Desktop/scripts/commitFT/data.jsonl \
-        --output /Users/fe/Desktop/DataSynthesis/input/jsonl/train.jsonl \
+    python tools/filter_commit_jsonl/filter_commit_jsonl.py \
+        --input /path/to/raw.jsonl \
+        --output /path/to/output.jsonl \
         --same-file-only \
         --require-old-nonempty \
         --require-new-nonempty \
@@ -38,7 +38,7 @@ class FilterConfig:
 
 def compute_hunks_stats(old_text: str, new_text: str) -> Tuple[int, List[int]]:
     """
-    计算从 old_text 到 new_text 的行级 diff 的 hunk 数量和各 hunk 的“行数”。
+    计算从 old_text 到 new_text 的行级 diff 的 hunk 数量和各 hunk 的"行数"。
 
     定义：
     - 先对按行拆分后的列表做 SequenceMatcher.get_opcodes()
@@ -328,4 +328,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -39,11 +39,12 @@ class FolderInputSource:
         for session_dir in _iter_session_dirs(self._root):
             type_plan = _load_json(session_dir / TYPE_PLAN_FILENAME)
             session_meta = _load_json(session_dir / SESSION_META_FILENAME)
-            for record in _iter_collected_records(session_dir / COLLECTED_FILENAME):
+            for idx, record in enumerate(_iter_collected_records(session_dir / COLLECTED_FILENAME)):
                 yield ProcessingUnit(
                     record=record,
                     type_plan=type_plan,
                     session_meta=session_meta,
+                    collected_idx=idx,
                 )
 
 

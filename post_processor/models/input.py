@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 # collected.jsonl 单行结构（TabLogCollector 输出）
@@ -23,3 +23,4 @@ class ProcessingUnit:
     record: CollectedRecord
     type_plan: TypePlanData
     session_meta: SessionMeta
+    collected_idx: Optional[int] = None  # collected.jsonl 中的 0-based 行号

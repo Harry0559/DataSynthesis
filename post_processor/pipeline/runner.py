@@ -35,7 +35,7 @@ def run_postprocessor(config: PipelineConfig) -> RunStats:
     流式阶段：integrate → filters → formatter → buffer
     批量阶段：dedupers 对 buffer 去重 → writer
     """
-    input_source = create_input_source(config.input_path, config.input_format)
+    input_source = create_input_source(config.input_path)
 
     step_params = getattr(config, "step_params", {})
     step_instances = _build_step_instances(config.steps, step_params)

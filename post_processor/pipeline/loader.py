@@ -7,17 +7,17 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Iterator, Protocol, Union
+from typing import Any, Iterator, Protocol, Union
 
-from ..models.input import ProcessingUnit
 from pydantic import ValidationError
 
+from ..models.input import ProcessingUnit
 from ..models.sample import (
     FORMAT_NAMES,
     FORMAT_VALIDATORS,
     RAW,
-    STANDARD,
     StandardSample,
+    ZetaDebugSample,
     ZetaSample,
 )
 
@@ -37,7 +37,7 @@ class InputSource(Protocol):
 
     def iter_items(
         self,
-    ) -> Iterator[Union[ProcessingUnit, StandardSample, ZetaSample]]:
+    ) -> Iterator[Union[ProcessingUnit, StandardSample, ZetaSample, ZetaDebugSample]]:
         ...
 
 
@@ -61,21 +61,61 @@ class FolderInputSource:
                 )
 
 
-class JsonlInputSource:
-    """JSONL 文件输入：逐行解析，按指定格式校验，只产出符合条件的行"""
-
-    def __init__(self, path: Path, input_format: str = STANDARD) -> None:
-        self._path = path.resolve()
-        if input_format not in FORMAT_NAMES:
+def _detect_format_from_first_line(path: Path) -> tuple[str, Any]:
+    """
+    从 jsonl 第一行有效数据推断格式。
+    返回 (format_name, validated_obj)。
+    若找不到有效行或所有格式校验均失败，抛出 ValueError。
+    """
+    with path.open("r", encoding="utf-8", errors="replace") as f:
+        for line_num, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"第 {line_num} 行 JSON 解析失败，无法推断输入格式: {e}"
+                ) from e
+            if not isinstance(obj, dict):
+                raise ValueError(
+                    f"第 {line_num} 行非对象类型，无法推断输入格式"
+                )
+            for fmt in FORMAT_NAMES:
+                if fmt == RAW:
+                    continue
+                validator = FORMAT_VALIDATORS.get(fmt)
+                if validator is None:
+                    continue
+                try:
+                    validated = validator.validate_python(obj)
+                    return (fmt, validated)
+                except ValidationError:
+                    continue
             raise ValueError(
-                f"input_format 必须是 {list(FORMAT_NAMES)} 之一，当前: {input_format!r}"
+                f"第 {line_num} 行不符合任何已定义格式（standard/zeta/zeta_debug），请检查字段是否正确"
             )
+    raise ValueError("jsonl 文件为空或无不含空行的有效行，无法推断输入格式")
+
+
+class JsonlInputSource:
+    """JSONL 文件输入：逐行解析，按推断格式校验，只产出符合条件的行"""
+
+    def __init__(
+        self, path: Path, input_format: str, first_validated: Any
+    ) -> None:
+        self._path = path.resolve()
         self.input_type = input_format
         self._validator = FORMAT_VALIDATORS[input_format]
+        self._first_validated = first_validated
 
-    def iter_items(self) -> Iterator[Union[StandardSample, ZetaSample]]:
+    def iter_items(
+        self,
+    ) -> Iterator[Union[StandardSample, ZetaSample, ZetaDebugSample]]:
+        yield self._first_validated
         with self._path.open("r", encoding="utf-8", errors="replace") as f:
-            for line_num, line in enumerate(f, 1):
+            for line_num, line in enumerate(f, 2):
                 line = line.strip()
                 if not line:
                     continue
@@ -167,8 +207,8 @@ def _iter_collected_records(path: Path) -> Iterator[dict]:
         return
 
 
-def create_input_source(path: Path, input_format: str = STANDARD) -> InputSource:
-    """根据路径类型创建输入源"""
+def create_input_source(path: Path) -> InputSource:
+    """根据路径类型创建输入源。jsonl 文件根据第一行数据自动推断格式。"""
     path = path.resolve()
     if path.is_dir():
         return FolderInputSource(path)
@@ -177,9 +217,6 @@ def create_input_source(path: Path, input_format: str = STANDARD) -> InputSource
             raise ValueError(
                 f"输入文件必须是 .jsonl 格式，当前: {path.name}"
             )
-        if input_format not in FORMAT_NAMES:
-            raise ValueError(
-                f"input_format 必须是 {list(FORMAT_NAMES)} 之一，当前: {input_format!r}"
-            )
-        return JsonlInputSource(path, input_format)
+        fmt, first_validated = _detect_format_from_first_line(path)
+        return JsonlInputSource(path, fmt, first_validated)
     raise FileNotFoundError(f"输入路径不存在: {path}")

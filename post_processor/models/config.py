@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .sample import STANDARD
-
 # PipelineStep = (step_type, step_name)
 PipelineStep = Tuple[str, str]
 
@@ -21,7 +19,6 @@ class PipelineConfig:
 
     input_path: Path
     output_path: Optional[Path] = None
-    input_format: str = STANDARD  # jsonl 输入时的格式
     steps: List[PipelineStep] = None
     step_params: Dict[StepKey, Dict[str, Any]] = None  # (type, name, occurrence) -> params
 

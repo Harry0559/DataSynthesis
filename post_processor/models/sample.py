@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, TypedDict
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ConfigDict, TypeAdapter, ValidationError
 
 
 # === 数据类型（扁平，用于 input_output_map、类型链校验）===
@@ -68,6 +68,10 @@ class ZetaDebugSample(TypedDict, total=True):
     format: Literal["zeta_debug"]
     metadata: Dict[str, Any]
 
+
+StandardSample.__pydantic_config__ = ConfigDict(extra="forbid")
+ZetaSample.__pydantic_config__ = ConfigDict(extra="forbid")
+ZetaDebugSample.__pydantic_config__ = ConfigDict(extra="forbid")
 
 # === 格式 Schema 与校验器 ===
 FORMAT_SCHEMAS: Dict[str, type] = {

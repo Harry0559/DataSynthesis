@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 from .models.config import PipelineConfig
-from .models.sample import FORMAT_NAMES, STANDARD
 from .pipeline.runner import run_postprocessor
 from .steps import parse_pipeline, parse_step_params_from_argv
 
@@ -40,12 +39,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         default=None,
         help="输出路径（默认 output/data/<format>_data_<timestamp>.jsonl）",
-    )
-    p.add_argument(
-        "--input-format",
-        default=STANDARD,
-        choices=list(FORMAT_NAMES),
-        help="jsonl 输入时的格式（默认 standard，可选 standard/zeta）",
     )
     p.add_argument(
         "--pipeline",
@@ -85,7 +78,6 @@ def main() -> None:
     config = PipelineConfig(
         input_path=input_path,
         output_path=output_path,
-        input_format=args.input_format,
         steps=steps,
         step_params=step_params,
     )

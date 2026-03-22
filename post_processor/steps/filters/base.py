@@ -20,7 +20,7 @@ class FilterBase(StepIOBase, ABC):
 
     @abstractmethod
     def process(
-        self, sample: Union[dict, Any]
+        self, sample: Union[dict, Any], format_name: str
     ) -> Optional[Union[dict, Any]]:
-        """处理一条，返回保留的样本或 None"""
+        """处理一条，返回保留的样本或 None。format_name 用于多格式分支。"""
         ...

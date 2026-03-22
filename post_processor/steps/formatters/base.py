@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from ..base import StepIOBase
 
@@ -16,6 +16,6 @@ class FormatterBase(StepIOBase, ABC):
     input_output_map = {STANDARD: STANDARD}
 
     @abstractmethod
-    def process(self, sample: dict) -> Optional[dict]:
-        """处理一条，返回格式化后的 dict 或 None（无法转换则丢弃）"""
+    def process(self, sample: dict, format_name: str) -> Optional[dict]:
+        """处理一条，返回格式化后的 dict 或 None（无法转换则丢弃）。format_name 为输入格式。"""
         ...

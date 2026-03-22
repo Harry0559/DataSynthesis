@@ -25,6 +25,6 @@ class SimHashDeduplicator(DeduperBase):
         self._seed = seed
         self._params = params
 
-    def deduplicate(self, samples: List[dict]) -> List[dict]:
-        # TODO: 实现 SimHash 去重，参考 tools/deduplication
+    def deduplicate(self, samples: List[dict], format_name: str) -> List[dict]:
+        # TODO: 实现 SimHash 去重，参考 tools/deduplication，可按 format_name 分支
         return samples  # 骨架：原样返回

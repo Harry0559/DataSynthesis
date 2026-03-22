@@ -6,18 +6,21 @@ from .config import PipelineConfig, PipelineStep
 from .input import CollectedRecord, ProcessingUnit, SessionMeta, TypePlanData
 from .sample import (
     FORMAT_NAMES,
+    FORMAT_SCHEMAS,
+    FORMAT_VALIDATORS,
     RAW,
     STANDARD,
     ZETA,
-    FormattedSample,
     StandardSample,
-    get_format,
+    ZetaSample,
+    validate_sample,
 )
 
 __all__ = [
     "CollectedRecord",
-    "FormattedSample",
     "FORMAT_NAMES",
+    "FORMAT_SCHEMAS",
+    "FORMAT_VALIDATORS",
     "PipelineConfig",
     "PipelineStep",
     "ProcessingUnit",
@@ -27,5 +30,6 @@ __all__ = [
     "StandardSample",
     "TypePlanData",
     "ZETA",
-    "get_format",
+    "ZetaSample",
+    "validate_sample",
 ]

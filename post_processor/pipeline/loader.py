@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
 from typing import Iterator, Protocol, Union
 
 from ..models.input import ProcessingUnit
-from ..models.sample import STANDARD
-from ..models.sample import StandardSample
+from pydantic import ValidationError
+
+from ..models.sample import (
+    FORMAT_NAMES,
+    FORMAT_VALIDATORS,
+    RAW,
+    STANDARD,
+    StandardSample,
+    ZetaSample,
+)
+
+logger = logging.getLogger(__name__)
 
 COLLECTED_FILENAME = "collected.jsonl"
 TYPE_PLAN_FILENAME = "type_plan.json"
@@ -22,9 +33,11 @@ SESSION_DIR_PATTERN = re.compile(r"^session_(\d{8}_\d{6})$")
 class InputSource(Protocol):
     """输入源抽象"""
 
-    needs_integration: bool
+    input_type: str  # RAW 或 STANDARD/ZETA
 
-    def iter_items(self) -> Iterator[Union[ProcessingUnit, StandardSample]]:
+    def iter_items(
+        self,
+    ) -> Iterator[Union[ProcessingUnit, StandardSample, ZetaSample]]:
         ...
 
 
@@ -33,7 +46,7 @@ class FolderInputSource:
 
     def __init__(self, root: Path) -> None:
         self._root = root.resolve()
-        self.needs_integration = True
+        self.input_type = RAW
 
     def iter_items(self) -> Iterator[ProcessingUnit]:
         for session_dir in _iter_session_dirs(self._root):
@@ -49,25 +62,48 @@ class FolderInputSource:
 
 
 class JsonlInputSource:
-    """JSONL 文件输入：逐行解析，产出 StandardSample 或 FormattedSample"""
+    """JSONL 文件输入：逐行解析，按指定格式校验，只产出符合条件的行"""
 
     def __init__(self, path: Path, input_format: str = STANDARD) -> None:
         self._path = path.resolve()
-        self._input_format = input_format
-        self.needs_integration = False
+        if input_format not in FORMAT_NAMES:
+            raise ValueError(
+                f"input_format 必须是 {list(FORMAT_NAMES)} 之一，当前: {input_format!r}"
+            )
+        self.input_type = input_format
+        self._validator = FORMAT_VALIDATORS[input_format]
 
-    def iter_items(self) -> Iterator[StandardSample]:
+    def iter_items(self) -> Iterator[Union[StandardSample, ZetaSample]]:
         with self._path.open("r", encoding="utf-8", errors="replace") as f:
-            for line in f:
+            for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     obj = json.loads(line)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        "丢弃第 %d 行（JSON 解析失败）: %s | 行内容预览: %.200s...",
+                        line_num,
+                        e,
+                        line,
+                    )
                     continue
-                if isinstance(obj, dict):
-                    yield obj
+                if not isinstance(obj, dict):
+                    logger.warning("丢弃第 %d 行（非对象类型）", line_num)
+                    continue
+                try:
+                    validated = self._validator.validate_python(obj)
+                except ValidationError as e:
+                    logger.warning(
+                        "丢弃第 %d 行（格式 %s 校验失败）: %s | 行内容预览: %.200s...",
+                        line_num,
+                        self.input_type,
+                        e,
+                        line,
+                    )
+                    continue
+                yield validated
 
 
 def _iter_session_dirs(root: Path) -> Iterator[Path]:
@@ -140,6 +176,10 @@ def create_input_source(path: Path, input_format: str = STANDARD) -> InputSource
         if path.suffix != ".jsonl":
             raise ValueError(
                 f"输入文件必须是 .jsonl 格式，当前: {path.name}"
+            )
+        if input_format not in FORMAT_NAMES:
+            raise ValueError(
+                f"input_format 必须是 {list(FORMAT_NAMES)} 之一，当前: {input_format!r}"
             )
         return JsonlInputSource(path, input_format)
     raise FileNotFoundError(f"输入路径不存在: {path}")

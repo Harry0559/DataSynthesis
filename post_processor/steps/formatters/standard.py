@@ -16,5 +16,5 @@ class StandardFormatter(FormatterBase):
     def __init__(self) -> None:
         pass
 
-    def process(self, sample: dict) -> Optional[dict]:
+    def process(self, sample: dict, format_name: str) -> Optional[dict]:
         return sample if isinstance(sample, dict) else None

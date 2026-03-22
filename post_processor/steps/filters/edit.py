@@ -15,8 +15,8 @@ class EditFilter(FilterBase):
         pass
 
     def process(
-        self, sample: Union[dict, Any]
+        self, sample: Union[dict, Any], format_name: str
     ) -> Optional[Union[dict, Any]]:
         if not isinstance(sample, dict):
             return None
-        return sample if not _is_cont(sample) else None
+        return sample if not _is_cont(sample, format_name) else None

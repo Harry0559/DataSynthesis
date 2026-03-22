@@ -14,9 +14,9 @@ class LlmFilter(FilterBase):
         pass
 
     def process(
-        self, sample: Union[dict, Any]
+        self, sample: Union[dict, Any], format_name: str
     ) -> Optional[Union[dict, Any]]:
-        # TODO: 调用 LLM 判断有效性
+        # TODO: 调用 LLM 判断有效性，可按 format_name 分支
         if not isinstance(sample, dict):
             return None
         return sample

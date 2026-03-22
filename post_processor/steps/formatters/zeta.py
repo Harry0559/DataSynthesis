@@ -25,9 +25,9 @@ class ZetaFormatter(FormatterBase):
         self._with_debug_fields = with_debug_fields
         self._params = params
 
-    def process(self, sample: dict) -> Optional[dict]:
+    def process(self, sample: dict, format_name: str) -> Optional[dict]:
         # TODO: 实现 zeta 转换，参考 tools/synthetic_data
-        # 骨架：最小 zeta 结构以便管线可运行
+        # 骨架：最小 zeta 结构以便管线可运行；format_name 应为 STANDARD
         return {
             "format": ZETA,
             "input": sample.get("content", ""),

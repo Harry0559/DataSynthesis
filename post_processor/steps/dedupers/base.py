@@ -19,6 +19,6 @@ class DeduperBase(StepIOBase, ABC):
     }
 
     @abstractmethod
-    def deduplicate(self, samples: List[dict]) -> List[dict]:
-        """对样本列表去重，返回保留的列表"""
+    def deduplicate(self, samples: List[dict], format_name: str) -> List[dict]:
+        """对样本列表去重，返回保留的列表。format_name 用于按格式分支处理。"""
         ...

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Any, Dict, List, Optional, get_args, get_origin
+from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hints
 
 from ..models.config import PipelineStep, StepKey
 from ..models.sample import STANDARD, ZETA
@@ -56,49 +56,54 @@ STEP_PARAM_PATTERN = re.compile(
 )
 
 
-def _get_step_class(step_type: str, step_name: str) -> Optional[type]:
-    """获取步骤类，不存在返回 None"""
-    reg = REGISTRIES.get(step_type)
-    return reg.get(step_name) if reg else None
-
-
-def _get_step_defaults(step_type: str, step_name: str) -> Dict[str, Any]:
-    """从 __init__ 签名提取默认参数"""
-    cls = _get_step_class(step_type, step_name)
+def _resolve_step(
+    step_type: str, step_name: str, *, step_index: Optional[int] = None
+) -> type:
+    """检查 (step_type, step_name) 合法并返回 cls，否则 raise。"""
+    if step_type not in STEP_TYPES:
+        if step_index is not None:
+            raise ValueError(
+                f"管线步骤 {step_index} 类型无效: '{step_type}'，"
+                f"应为 {list(STEP_TYPES)} 之一"
+            )
+        raise ValueError(
+            f"未知步骤类型: '{step_type}'，应为 {list(STEP_TYPES)} 之一"
+        )
+    cls = REGISTRIES.get(step_type, {}).get(step_name)
     if cls is None:
-        return {}
-    sig = inspect.signature(cls.__init__)
-    defaults: Dict[str, Any] = {}
-    for name, param in sig.parameters.items():
-        if name == "self":
-            continue
-        if param.default != inspect.Parameter.empty:
-            defaults[name] = param.default
-    return defaults
+        valid = list(REGISTRIES.get(step_type, {}).keys())
+        if step_index is not None:
+            raise ValueError(
+                f"管线步骤 {step_index} 名称无效: '{step_name}'，"
+                f"{step_type} 可用: {valid}"
+            )
+        raise ValueError(
+            f"未知步骤: {step_type}:{step_name}，{step_type} 可用: {valid}"
+        )
+    return cls
 
 
-def _get_step_param_schema(step_type: str, step_name: str) -> Optional[Dict[str, Any]]:
-    """
-    获取步骤参数 schema：{param_name: annotation}。
-    若 __init__ 仅有 **kwargs 无显式参数，返回 None 表示接受任意参数。
-    """
-    cls = _get_step_class(step_type, step_name)
-    if cls is None:
-        return None
+def _get_init_overridable_params(
+    cls: type,
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """从 cls.__init__ 提取可覆盖参数：schema（类型）和 defaults（默认值）。跳过 self 和 **kwargs。"""
     sig = inspect.signature(cls.__init__)
     schema: Dict[str, Any] = {}
-    has_var_kwargs = False
+    defaults: Dict[str, Any] = {}
+    try:
+        hints = get_type_hints(cls.__init__)
+    except Exception:
+        hints = {}
     for name, param in sig.parameters.items():
         if name == "self":
             continue
         if param.kind == inspect.Parameter.VAR_KEYWORD:
-            has_var_kwargs = True
             continue
-        ann = param.annotation if param.annotation != inspect.Parameter.empty else None
-        schema[name] = ann
-    if has_var_kwargs and not schema:
-        return None
-    return schema
+        schema[name] = hints.get(name)
+        defaults[name] = (
+            param.default if param.default != inspect.Parameter.empty else None
+        )
+    return schema, defaults
 
 
 def _guess_and_convert(value_str: str) -> Any:
@@ -110,8 +115,10 @@ def _guess_and_convert(value_str: str) -> Any:
         return False
     if value_str.lstrip("-").isdigit():
         return int(value_str)
-    if _is_float(value_str):
+    try:
         return float(value_str)
+    except ValueError:
+        pass
     if "," in value_str:
         return tuple(int(x.strip()) for x in value_str.split(",") if x.strip())
     return value_str
@@ -161,15 +168,16 @@ def _convert_param_value(
             return tuple(elem_type(p) for p in parts)
         return _guess_and_convert(value_str)
     except (ValueError, TypeError) as e:
+        type_hint = f"（期望 {expected_type.__name__}）" if expected_type else ""
         raise ValueError(
-            f"参数 {step_type}:{step_name}.{param_name} 类型错误: {e}"
+            f"参数 {step_type}:{step_name}.{param_name} 类型错误{type_hint}: {e}"
         ) from e
 
 
 def parse_pipeline(s: str) -> List[PipelineStep]:
     """
-    解析管线字符串，强校验 type/name，合法步骤使用其默认参数。
-    "integrate,filter:llm,format:zeta,dedup" -> [(type, name, default_params), ...]
+    解析管线字符串，强校验 type/name。
+    返回 [(step_type, step_name), ...]，不保存默认值。
     """
     steps = []
     for i, part in enumerate(s.split(",")):
@@ -182,22 +190,8 @@ def parse_pipeline(s: str) -> List[PipelineStep]:
             step_type = part
             step_name = DEFAULT_NAMES.get(step_type, "default")
 
-        if step_type not in STEP_TYPES:
-            raise ValueError(
-                f"管线步骤 {i + 1} 类型无效: '{step_type}'，"
-                f"应为 {list(STEP_TYPES)} 之一"
-            )
-
-        cls = _get_step_class(step_type, step_name)
-        if cls is None:
-            valid_names = list(REGISTRIES[step_type].keys())
-            raise ValueError(
-                f"管线步骤 {i + 1} 名称无效: '{step_name}'，"
-                f"{step_type} 可用: {valid_names}"
-            )
-
-        default_params = _get_step_defaults(step_type, step_name)
-        steps.append((step_type, step_name, default_params))
+        _resolve_step(step_type, step_name, step_index=i + 1)
+        steps.append((step_type, step_name))
     return steps
 
 
@@ -221,20 +215,16 @@ def parse_step_params_from_argv(argv: List[str]) -> Dict[StepKey, Dict[str, Any]
         occurrence = int(occ_str) if occ_str else 0
         param_name = param.replace("-", "_")
 
-        if step_type not in STEP_TYPES:
+        cls = _resolve_step(step_type, step_name)
+        schema, defaults = _get_init_overridable_params(cls)
+        if param_name not in schema:
+            if not schema:
+                raise ValueError(
+                    f"步骤 {step_type}:{step_name} 无参数，不能传入 '{param_name}'"
+                )
             raise ValueError(
-                f"未知步骤类型: '{step_type}'，应为 {list(STEP_TYPES)} 之一"
-            )
-        cls = _get_step_class(step_type, step_name)
-        if cls is None:
-            valid_names = list(REGISTRIES[step_type].keys())
-            raise ValueError(
-                f"未知步骤: {step_type}:{step_name}，{step_type} 可用: {valid_names}"
-            )
-        schema = _get_step_param_schema(step_type, step_name)
-        if schema is not None and param_name not in schema:
-            raise ValueError(
-                f"未知参数 '{param_name}'，{step_type}:{step_name} 接受: {list(schema.keys())}"
+                f"未知参数 '{param_name}'，{step_type}:{step_name} "
+                f"接受的参数及默认值: {defaults}"
             )
 
         if i + 1 < len(argv) and not argv[i + 1].startswith("--"):
@@ -245,6 +235,18 @@ def parse_step_params_from_argv(argv: List[str]) -> Dict[StepKey, Dict[str, Any]
                 value_str, param_name, expected_type, step_type, step_name
             )
         else:
+            expected_type = schema.get(param_name) if schema else None
+            if expected_type is not None:
+                origin = get_origin(expected_type)
+                args = get_args(expected_type) if origin is not None else ()
+                if origin is not None and args:
+                    non_none = [a for a in args if a is not type(None)]
+                    if len(non_none) == 1:
+                        expected_type = non_none[0]
+            if expected_type is not bool:
+                raise ValueError(
+                    f"参数 {step_type}:{step_name}.{param_name} 省略值时仅支持 bool 类型，请显式提供值"
+                )
             value = True
             i += 1
 
@@ -255,34 +257,12 @@ def parse_step_params_from_argv(argv: List[str]) -> Dict[StepKey, Dict[str, Any]
     return result
 
 
-def _is_float(s: str) -> bool:
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
-
-
 def get_step(step_type: str, step_name: str, params: Dict[str, Any]) -> Any:
-    """根据类型和名称获取步骤实例"""
-    if step_type == INTEGRATE:
-        cls = INTEGRATORS.get(step_name)
-        if cls is None:
-            raise ValueError(f"未知的整合器: {step_name}")
-        return cls(**params)
-    if step_type == FILTER:
-        cls = FILTERS.get(step_name)
-        if cls is None:
-            raise ValueError(f"未知的过滤器: {step_name}")
-        return cls(**params)
-    if step_type == FORMAT:
-        cls = FORMATTERS.get(step_name)
-        if cls is None:
-            raise ValueError(f"未知的格式化器: {step_name}")
-        return cls(**params)
-    if step_type == DEDUP:
-        cls = DEDUPERS.get(step_name)
-        if cls is None:
-            raise ValueError(f"未知的去重器: {step_name}")
-        return cls(**params)
-    raise ValueError(f"未知的步骤类型: {step_type}")
+    """根据类型和名称获取步骤实例。params 为空则 cls()，否则 cls(**params)"""
+    cls = _resolve_step(step_type, step_name)
+    schema, _ = _get_init_overridable_params(cls)
+    if not schema and params:
+        raise ValueError(
+            f"步骤 {step_type}:{step_name} 无参数，但传入了: {list(params.keys())}"
+        )
+    return cls() if not params else cls(**params)

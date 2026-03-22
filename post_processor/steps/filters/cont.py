@@ -16,8 +16,8 @@ def _is_cont(sample: dict) -> bool:
 class ContFilter(FilterBase):
     """规则判断：保留续写数据"""
 
-    def __init__(self, **params: object) -> None:
-        self._params = params
+    def __init__(self) -> None:
+        pass
 
     def process(
         self, sample: Union[dict, Any]

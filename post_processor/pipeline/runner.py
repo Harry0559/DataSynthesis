@@ -107,15 +107,15 @@ def _build_step_instances(
     steps: List[PipelineStep],
     step_params: Dict[StepKey, Dict[str, Any]],
 ) -> List[tuple[str, Any]]:
-    """为每个步骤构建实例并绑定参数"""
+    """为每个步骤构建实例：step_params 有则传覆盖，无则传空 dict"""
     from ..steps import get_step
 
     occurrence: Dict[tuple[str, str], int] = {}
     instances = []
-    for step_type, step_name, default_params in steps:
+    for step_type, step_name in steps:
         key = (step_type, step_name)
         occ = occurrence.get(key, 0)
         occurrence[key] = occ + 1
-        params = step_params.get((step_type, step_name, occ)) or default_params
+        params = step_params.get((step_type, step_name, occ)) or {}
         instances.append((step_type, get_step(step_type, step_name, params)))
     return instances

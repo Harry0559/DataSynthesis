@@ -11,8 +11,8 @@ from .cont import _is_cont
 class EditFilter(FilterBase):
     """规则判断：保留编辑数据（续写取反）"""
 
-    def __init__(self, **params: object) -> None:
-        self._params = params
+    def __init__(self) -> None:
+        pass
 
     def process(
         self, sample: Union[dict, Any]

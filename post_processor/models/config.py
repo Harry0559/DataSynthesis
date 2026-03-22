@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .sample import STANDARD
 
-# PipelineStep = (step_type, step_name, params)
-PipelineStep = Tuple[str, str, Dict[str, Any]]
+# PipelineStep = (step_type, step_name)
+PipelineStep = Tuple[str, str]
 
 # StepKey = (step_type, step_name, occurrence)
 StepKey = Tuple[str, str, int]

@@ -13,8 +13,8 @@ class StandardFormatter(FormatterBase):
 
     input_output_map = {STANDARD: STANDARD}
 
-    def __init__(self, **params: object) -> None:
-        self._params = params
+    def __init__(self) -> None:
+        pass
 
     def process(self, sample: dict) -> Optional[dict]:
         return sample if isinstance(sample, dict) else None

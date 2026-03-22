@@ -64,8 +64,7 @@ def _build_metadata(
 class DefaultIntegrator(IntegratorBase):
     """默认整合实现：collected + type_plan + session_meta → 标准格式"""
 
-    def __init__(self, **params: object) -> None:
-        self._params = params
+    def __init__(self) -> None:
         self._id_counter = 0
 
     def process(self, unit: ProcessingUnit) -> Optional[StandardSample]:

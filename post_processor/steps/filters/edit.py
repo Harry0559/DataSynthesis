@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Optional
 
+from ...models.sample import ZETA_DEBUG, ZetaDebugSample
 from .base import FilterBase
-from .cont import _is_cont
+from .cont_edit_impl import is_continuation
 
 
 class EditFilter(FilterBase):
-    """规则判断：保留编辑数据（续写取反）"""
+    """规则判断：保留编辑数据（续写取反）。仅支持 zeta_debug 输入。"""
+
+    input_output_map = {ZETA_DEBUG: ZETA_DEBUG}
 
     def __init__(self) -> None:
         pass
 
     def process(
-        self, sample: Union[dict, Any], format_name: str
-    ) -> Optional[Union[dict, Any]]:
-        if not isinstance(sample, dict):
-            return None
-        return sample if not _is_cont(sample, format_name) else None
+        self, sample: ZetaDebugSample, format_name: str
+    ) -> Optional[ZetaDebugSample]:
+        return sample if not is_continuation(sample) else None

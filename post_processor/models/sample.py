@@ -22,7 +22,7 @@ class StandardSample(TypedDict, total=True):
 
     id: int
     file: str
-    cursor: Dict[str, Any]
+    cursor: Dict[str, int]
     init_content: str
     prev_content: str
     content: str
@@ -55,7 +55,7 @@ class ZetaDebugSample(TypedDict, total=True):
     input: str
     ground_truth: str
     ground_truth_content: str
-    cursor: Dict[str, Any]
+    cursor: Dict[str, int]
     init_content: str
     prev_content: str
     content: str

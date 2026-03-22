@@ -3,25 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Optional
 
 from ..base import StepIOBase
 
-from ...models.sample import STANDARD, ZETA, ZETA_DEBUG
-
 
 class FilterBase(StepIOBase, ABC):
-    """过滤器：输入 standard、zeta 或 zeta_debug，输出同类型或 None（丢弃）"""
-
-    input_output_map = {
-        STANDARD: STANDARD,
-        ZETA: ZETA,
-        ZETA_DEBUG: ZETA_DEBUG,
-    }
+    """过滤器：负责样本过滤。各子类必须定义 input_output_map 声明支持的输入→输出格式。"""
 
     @abstractmethod
-    def process(
-        self, sample: Union[dict, Any], format_name: str
-    ) -> Optional[Union[dict, Any]]:
+    def process(self, sample: dict, format_name: str) -> Optional[dict]:
         """处理一条，返回保留的样本或 None。format_name 用于多格式分支。"""
         ...

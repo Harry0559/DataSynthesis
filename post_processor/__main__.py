@@ -24,8 +24,8 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Post-processor：整合/过滤/格式化/去重，输出 JSONL。",
         epilog="""
 示例:
-  # 从文件夹整合并输出标准格式
-  python -m post_processor --input ./output/collected --pipeline "integrate,format:standard"
+  # 从文件夹整合并输出 zeta 格式
+  python -m post_processor --input ./output/collected --pipeline "integrate,format:zeta"
 
   # 从文件夹到 zeta 格式并去重
   python -m post_processor --input ./output/collected --pipeline "integrate,filter:llm,format:zeta,dedup" \\

@@ -7,13 +7,9 @@ from typing import Optional
 
 from ..base import StepIOBase
 
-from ...models.sample import STANDARD
-
 
 class FormatterBase(StepIOBase, ABC):
-    """格式化器：Standard → Standard | Formatted"""
-
-    input_output_map = {STANDARD: STANDARD}
+    """格式化器：负责格式间转换。各子类必须定义 input_output_map 声明支持的输入→输出格式。"""
 
     @abstractmethod
     def process(self, sample: dict, format_name: str) -> Optional[dict]:

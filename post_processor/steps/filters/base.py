@@ -7,15 +7,16 @@ from typing import Any, Optional, Union
 
 from ..base import StepIOBase
 
-from ...models.sample import STANDARD, ZETA
+from ...models.sample import STANDARD, ZETA, ZETA_DEBUG
 
 
 class FilterBase(StepIOBase, ABC):
-    """过滤器：输入 standard 或 zeta，输出同类型或 None（丢弃）"""
+    """过滤器：输入 standard、zeta 或 zeta_debug，输出同类型或 None（丢弃）"""
 
     input_output_map = {
         STANDARD: STANDARD,
         ZETA: ZETA,
+        ZETA_DEBUG: ZETA_DEBUG,
     }
 
     @abstractmethod

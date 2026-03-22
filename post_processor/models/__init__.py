@@ -11,7 +11,9 @@ from .sample import (
     RAW,
     STANDARD,
     ZETA,
+    ZETA_DEBUG,
     StandardSample,
+    ZetaDebugSample,
     ZetaSample,
     validate_sample,
 )
@@ -30,6 +32,8 @@ __all__ = [
     "StandardSample",
     "TypePlanData",
     "ZETA",
+    "ZETA_DEBUG",
+    "ZetaDebugSample",
     "ZetaSample",
     "validate_sample",
 ]

@@ -7,7 +7,7 @@ import re
 from typing import Any, Dict, List, Optional, get_args, get_origin, get_type_hints
 
 from ..models.config import PipelineStep, StepKey
-from ..models.sample import STANDARD, ZETA
+from ..models.sample import ZETA, ZETA_DEBUG
 
 from .base import StepIOBase
 
@@ -20,7 +20,7 @@ DEDUP = "dedup"
 # 注册表
 from .dedupers import DeduperBase, SimHashDeduplicator
 from .filters import ContFilter, EditFilter, FilterBase, LlmFilter
-from .formatters import FormatterBase, StandardFormatter, ZetaFormatter
+from .formatters import FormatterBase, ZetaDebugFormatter, ZetaFormatter
 from .integrators import DefaultIntegrator, IntegratorBase
 
 INTEGRATORS: Dict[str, type] = {"default": DefaultIntegrator}
@@ -30,8 +30,8 @@ FILTERS: Dict[str, type] = {
     "cont": ContFilter,
 }
 FORMATTERS: Dict[str, type] = {
-    STANDARD: StandardFormatter,
     ZETA: ZetaFormatter,
+    ZETA_DEBUG: ZetaDebugFormatter,
 }
 DEDUPERS: Dict[str, type] = {"simhash": SimHashDeduplicator}
 
@@ -46,7 +46,7 @@ REGISTRIES: Dict[str, Dict[str, type]] = {
 DEFAULT_NAMES: Dict[str, str] = {
     INTEGRATE: "default",
     FILTER: "llm",
-    FORMAT: STANDARD,
+    FORMAT: ZETA,
     DEDUP: "simhash",
 }
 

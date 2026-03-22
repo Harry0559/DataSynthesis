@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, TypedDict
-
-try:
-    from typing import NotRequired, Required
-except ImportError:
-    from typing_extensions import NotRequired, Required
+from typing import Any, Dict, List, Literal, TypedDict
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -16,9 +11,10 @@ from pydantic import TypeAdapter, ValidationError
 RAW = "raw"
 STANDARD = "standard"
 ZETA = "zeta"
+ZETA_DEBUG = "zeta_debug"
 
 # === 格式集合 ===
-FORMAT_NAMES = (STANDARD, ZETA)  # 具体格式，用于 formatter 注册、CLI、input_format
+FORMAT_NAMES = (STANDARD, ZETA, ZETA_DEBUG)  # 具体格式，用于 formatter 注册、CLI、input_format
 
 
 class StandardSample(TypedDict, total=True):
@@ -36,28 +32,48 @@ class StandardSample(TypedDict, total=True):
     edit_history_from_prev: List[Dict[str, Any]]
     timestamp: str
     collector: str
-    format: str
+    format: Literal["standard"]
     metadata: Dict[str, Any]
 
 
-class ZetaSample(TypedDict, total=False):
-    """Zeta 格式样本（格式化器输出），骨架字段，可按需扩展"""
+class ZetaSample(TypedDict, total=True):
+    """Zeta 格式样本（格式化器输出），6 字段均必填"""
 
-    format: Required[str]
     id: int
     file: str
     input: str
     ground_truth: str
+    format: Literal["zeta"]
     metadata: Dict[str, Any]
+
+
+class ZetaDebugSample(TypedDict, total=True):
+    """Zeta debug 格式样本（调试用），17 字段均必填"""
+
+    id: int
+    file: str
+    input: str
+    ground_truth: str
+    ground_truth_content: str
+    cursor: Dict[str, Any]
+    init_content: str
     prev_content: str
     content: str
-    ground_truth_content: str
+    final_content: str
+    model_output: str
+    edit_history_from_init: List[Dict[str, Any]]
+    edit_history_from_prev: List[Dict[str, Any]]
+    timestamp: str
+    collector: str
+    format: Literal["zeta_debug"]
+    metadata: Dict[str, Any]
 
 
 # === 格式 Schema 与校验器 ===
 FORMAT_SCHEMAS: Dict[str, type] = {
     STANDARD: StandardSample,
     ZETA: ZetaSample,
+    ZETA_DEBUG: ZetaDebugSample,
 }
 
 FORMAT_VALIDATORS: Dict[str, TypeAdapter] = {

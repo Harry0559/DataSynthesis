@@ -7,7 +7,7 @@ from typing import List
 
 from ..base import StepIOBase
 
-from ...models.sample import STANDARD, ZETA
+from ...models.sample import STANDARD, ZETA, ZETA_DEBUG
 
 
 class DeduperBase(StepIOBase, ABC):
@@ -16,6 +16,7 @@ class DeduperBase(StepIOBase, ABC):
     input_output_map = {
         STANDARD: STANDARD,
         ZETA: ZETA,
+        ZETA_DEBUG: ZETA_DEBUG,
     }
 
     @abstractmethod

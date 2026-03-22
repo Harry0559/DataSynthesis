@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .base import FormatterBase
-from .standard import StandardFormatter
 from .zeta import ZetaFormatter
+from .zeta_debug import ZetaDebugFormatter
 
-__all__ = ["FormatterBase", "StandardFormatter", "ZetaFormatter"]
+__all__ = ["FormatterBase", "ZetaFormatter", "ZetaDebugFormatter"]

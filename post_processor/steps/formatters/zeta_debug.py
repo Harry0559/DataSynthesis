@@ -1,18 +1,18 @@
-"""Zeta 格式化器：Standard | ZetaDebug → Zeta"""
+"""Zeta Debug 格式化器：Standard → Zeta Debug"""
 
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Optional
 
-from ...models.sample import STANDARD, ZETA, ZETA_DEBUG, StandardSample, ZetaDebugSample, ZetaSample
+from ...models.sample import STANDARD, ZETA_DEBUG, StandardSample, ZetaDebugSample
 from .base import FormatterBase
 from .zeta_impl import build_zeta_io, to_posix_path
 
 
-class ZetaFormatter(FormatterBase):
-    """Standard | ZetaDebug → Zeta 格式。输出字段：id, file, input, ground_truth, format, metadata。"""
+class ZetaDebugFormatter(FormatterBase):
+    """Standard → Zeta Debug 格式。输出 17 字段用于调试。"""
 
-    input_output_map = {STANDARD: ZETA, ZETA_DEBUG: ZETA}
+    input_output_map = {STANDARD: ZETA_DEBUG}
 
     def __init__(
         self,
@@ -24,19 +24,8 @@ class ZetaFormatter(FormatterBase):
         self._id_counter = 0
 
     def process(
-        self, sample: Union[StandardSample, ZetaDebugSample], format_name: str
-    ) -> Optional[ZetaSample]:
-        if format_name == ZETA_DEBUG:
-            self._id_counter += 1
-            return {
-                "id": self._id_counter,
-                "file": sample["file"],
-                "input": sample["input"],
-                "ground_truth": sample["ground_truth"],
-                "format": ZETA,
-                "metadata": sample["metadata"],
-            }
-
+        self, sample: StandardSample, format_name: str
+    ) -> Optional[ZetaDebugSample]:
         norm_file = to_posix_path(sample.get("file", ""))
         source_metadata = (sample.get("metadata") or {}).get("source_metadata") or {}
 
@@ -52,7 +41,7 @@ class ZetaFormatter(FormatterBase):
         if io_result is None:
             return None
 
-        input_text, ground_truth, _ = io_result
+        input_text, ground_truth, ground_truth_content = io_result
         self._id_counter += 1
 
         return {
@@ -60,6 +49,17 @@ class ZetaFormatter(FormatterBase):
             "file": norm_file,
             "input": input_text,
             "ground_truth": ground_truth,
-            "format": ZETA,
+            "ground_truth_content": ground_truth_content,
+            "cursor": sample.get("cursor") or {},
+            "init_content": sample.get("init_content", ""),
+            "prev_content": sample.get("prev_content", ""),
+            "content": sample.get("content", ""),
+            "final_content": sample.get("final_content", ""),
+            "model_output": sample.get("model_output", "") or "",
+            "edit_history_from_init": sample.get("edit_history_from_init", []),
+            "edit_history_from_prev": sample.get("edit_history_from_prev", []),
+            "timestamp": sample.get("timestamp", ""),
+            "collector": sample.get("collector", ""),
+            "format": ZETA_DEBUG,
             "metadata": sample.get("metadata") or {},
         }

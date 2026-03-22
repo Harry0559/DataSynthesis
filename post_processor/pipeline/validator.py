@@ -5,25 +5,7 @@ from __future__ import annotations
 from typing import Any, List
 
 from ..models.sample import RAW
-from ..steps import DEDUP, FORMAT, INTEGRATE
-
-
-def _step_accepts(step: Any, current_type: str) -> bool:
-    """步骤是否接受当前类型（基于 input_output_map 的 key）"""
-    io_map = getattr(step, "input_output_map", {})
-    return current_type in io_map
-
-
-def _step_output(step: Any, current_type: str) -> str:
-    """步骤输出类型（基于 input_output_map）"""
-    io_map = getattr(step, "input_output_map", {})
-    return io_map.get(current_type, current_type)
-
-
-def _step_accepted_types(step: Any) -> list:
-    """步骤接受的输入类型列表（用于错误提示）"""
-    io_map = getattr(step, "input_output_map", {})
-    return list(io_map.keys())
+from ..steps import DEDUP, INTEGRATE
 
 
 def validate_pipeline(
@@ -33,7 +15,7 @@ def validate_pipeline(
     """
     校验管线（基于步骤实例），单循环完成所有检查，返回最终输出类型。
     - 整合器：raw 时必须有且仅有一个且为首步，非 raw 时不允许
-    - 格式化器：最多 1 个
+    - 格式化器：数量不限
     - 去重器：若存在必须在末尾，可多个串联
     - 类型链：相邻步骤输入输出类型匹配
     """
@@ -44,7 +26,6 @@ def validate_pipeline(
 
     current_type = input_type
     integrate_count = 0
-    format_count = 0
     seen_dedup = False
 
     for i, (step_type, step_instance) in enumerate(step_instances):
@@ -61,11 +42,6 @@ def validate_pipeline(
             if integrate_count > 1:
                 raise ConfigError("整合器最多只能有一个")
 
-        if step_type == FORMAT:
-            format_count += 1
-            if format_count > 1:
-                raise ConfigError("格式化器最多只能有一个")
-
         if step_type == DEDUP:
             seen_dedup = True
         else:
@@ -74,13 +50,13 @@ def validate_pipeline(
                     "去重器必须在管线末尾，不允许在去重器之后出现其他步骤"
                 )
 
-        if not _step_accepts(step_instance, current_type):
-            accepted = _step_accepted_types(step_instance)
+        if not step_instance.accepts(current_type):
             raise ConfigError(
-                f"管线步骤类型不匹配：步骤 {i + 1} ({step_type}) 期望输入 {accepted}，"
+                f"管线步骤类型不匹配：步骤 {i + 1} ({step_type}) 期望输入 "
+                f"{list(step_instance.accepted_input_formats)}，"
                 f"但上一步输出 {current_type}"
             )
-        current_type = _step_output(step_instance, current_type)
+        current_type = step_instance.output_format_for(current_type)
 
     if input_type == RAW and integrate_count == 0:
         raise ConfigError("输入为文件夹（Raw）时，必须包含整合器")

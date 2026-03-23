@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from tqdm import tqdm
+
 from ..models.config import PipelineConfig, PipelineStep, StepKey
 from ..models.sample import RAW, validate_sample
 from ..steps import DEDUP, FILTER, FORMAT, SORT
@@ -44,86 +46,94 @@ def run_postprocessor(config: PipelineConfig) -> RunStats:
     output_path = _resolve_output_path(config, output_format)
     stream_steps = [(t, s) for t, s in step_instances if t != SORT]
     sort_steps = [(t, s) for t, s in step_instances if t == SORT]
+    use_buffer = len(sort_steps) > 0
 
     stats = RunStats()
     buffer: List[Dict[str, Any]] = []
 
-    for item in input_source.iter_items():
-        current_format = input_source.input_type
-        step_idx = 0
-
-        if input_source.input_type == RAW:
-            integrate_step = stream_steps[0][1]
-            sample = integrate_step.process(item)
-            if sample is None:
-                stats.dropped_by_integrate += 1
-                continue
-            current_format = integrate_step.output_format_for(RAW)
-            step_idx = 1
+    def emit(validated: Dict[str, Any]) -> None:
+        if use_buffer:
+            buffer.append(validated)
         else:
-            sample = item
-
-        stats.input_count += 1
-        dropped = False
-        for i in range(step_idx, len(stream_steps)):
-            step_type, step_instance = stream_steps[i]
-            validated = validate_sample(sample, current_format)
-            if validated is None:
-                logger.error(
-                    "第 %d 步 (%s) 入口格式校验失败（期望 %s），丢弃",
-                    i + 1,
-                    step_type,
-                    current_format,
-                )
-                dropped = True
-                break
-            sample = validated
-
-            if step_type == FILTER:
-                sample = step_instance.process(sample, current_format)
-                if sample is None:
-                    stats.dropped_by_filter += 1
-                    dropped = True
-                    break
-                current_format = step_instance.output_format_for(current_format)
-            elif step_type == FORMAT:
-                sample = step_instance.process(sample, current_format)
-                if sample is None:
-                    stats.dropped_by_formatter += 1
-                    dropped = True
-                    break
-                current_format = step_instance.output_format_for(current_format)
-            elif step_type == DEDUP:
-                sample = step_instance.process(sample, current_format)
-                if sample is None:
-                    stats.dropped_by_dedup += 1
-                    dropped = True
-                    break
-                current_format = step_instance.output_format_for(current_format)
-
-        if not dropped and sample is not None:
-            validated = validate_sample(sample, current_format)
-            if validated is None:
-                logger.error(
-                    "样本未通过最终格式校验（期望 %s），丢弃",
-                    current_format,
-                )
-            elif current_format != output_format:
-                logger.error(
-                    "格式链异常：current_format=%s 与 output_format=%s 不一致，丢弃",
-                    current_format,
-                    output_format,
-                )
-            else:
-                buffer.append(validated)
-
-    for _, sorter in sort_steps:
-        buffer = sorter.sort(buffer)
+            w.write(validated)
+            stats.output_count += 1
 
     with Writer(output_path) as w:
-        for item in buffer:
-            w.write(item)
-            stats.output_count += 1
+        for item in tqdm(input_source.iter_items(), desc="处理中", unit="条"):
+            current_format = input_source.input_type
+            step_idx = 0
+
+            if input_source.input_type == RAW:
+                integrate_step = stream_steps[0][1]
+                sample = integrate_step.process(item)
+                if sample is None:
+                    stats.dropped_by_integrate += 1
+                    continue
+                current_format = integrate_step.output_format_for(RAW)
+                step_idx = 1
+            else:
+                sample = item
+
+            stats.input_count += 1
+            dropped = False
+            for i in range(step_idx, len(stream_steps)):
+                step_type, step_instance = stream_steps[i]
+                validated = validate_sample(sample, current_format)
+                if validated is None:
+                    logger.error(
+                        "第 %d 步 (%s) 入口格式校验失败（期望 %s），丢弃",
+                        i + 1,
+                        step_type,
+                        current_format,
+                    )
+                    dropped = True
+                    break
+                sample = validated
+
+                if step_type == FILTER:
+                    sample = step_instance.process(sample, current_format)
+                    if sample is None:
+                        stats.dropped_by_filter += 1
+                        dropped = True
+                        break
+                    current_format = step_instance.output_format_for(current_format)
+                elif step_type == FORMAT:
+                    sample = step_instance.process(sample, current_format)
+                    if sample is None:
+                        stats.dropped_by_formatter += 1
+                        dropped = True
+                        break
+                    current_format = step_instance.output_format_for(current_format)
+                elif step_type == DEDUP:
+                    sample = step_instance.process(sample, current_format)
+                    if sample is None:
+                        stats.dropped_by_dedup += 1
+                        dropped = True
+                        break
+                    current_format = step_instance.output_format_for(current_format)
+
+            if not dropped and sample is not None:
+                validated = validate_sample(sample, current_format)
+                if validated is None:
+                    logger.error(
+                        "样本未通过最终格式校验（期望 %s），丢弃",
+                        current_format,
+                    )
+                elif current_format != output_format:
+                    logger.error(
+                        "格式链异常：current_format=%s 与 output_format=%s 不一致，丢弃",
+                        current_format,
+                        output_format,
+                    )
+                else:
+                    emit(validated)
+
+        if use_buffer:
+            for _, sorter in sort_steps:
+                buffer = sorter.sort(buffer)
+            for item in buffer:
+                w.write(item)
+                stats.output_count += 1
 
     return stats
 

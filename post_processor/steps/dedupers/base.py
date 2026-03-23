@@ -3,23 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Optional
 
 from ..base import StepIOBase
 
-from ...models.sample import STANDARD, ZETA, ZETA_DEBUG
-
 
 class DeduperBase(StepIOBase, ABC):
-    """去重器：对样本集合整体去重"""
-
-    input_output_map = {
-        STANDARD: STANDARD,
-        ZETA: ZETA,
-        ZETA_DEBUG: ZETA_DEBUG,
-    }
+    """去重器：流式处理，逐条判断是否重复。各子类必须定义 input_output_map。"""
 
     @abstractmethod
-    def deduplicate(self, samples: List[dict], format_name: str) -> List[dict]:
-        """对样本列表去重，返回保留的列表。format_name 用于按格式分支处理。"""
+    def process(self, sample: dict, format_name: str) -> Optional[dict]:
+        """处理一条，返回保留的样本或 None（重复则丢弃）。"""
         ...

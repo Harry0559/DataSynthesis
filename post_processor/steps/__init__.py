@@ -16,12 +16,14 @@ INTEGRATE = "integrate"
 FILTER = "filter"
 FORMAT = "format"
 DEDUP = "dedup"
+SORT = "sort"
 
 # 注册表
 from .dedupers import DeduperBase, SimHashDeduplicator
 from .filters import ContFilter, EditFilter, FilterBase, LlmFilter
 from .formatters import FormatterBase, ZetaDebugFormatter, ZetaFormatter
 from .integrators import DefaultIntegrator, IntegratorBase
+from .sorters import ShuffleSorter, SorterBase
 
 INTEGRATORS: Dict[str, type] = {"default": DefaultIntegrator}
 FILTERS: Dict[str, type] = {
@@ -34,13 +36,15 @@ FORMATTERS: Dict[str, type] = {
     ZETA_DEBUG: ZetaDebugFormatter,
 }
 DEDUPERS: Dict[str, type] = {"simhash": SimHashDeduplicator}
+SORTERS: Dict[str, type] = {"shuffle": ShuffleSorter}
 
-STEP_TYPES = (INTEGRATE, FILTER, FORMAT, DEDUP)
+STEP_TYPES = (INTEGRATE, FILTER, FORMAT, DEDUP, SORT)
 REGISTRIES: Dict[str, Dict[str, type]] = {
     INTEGRATE: INTEGRATORS,
     FILTER: FILTERS,
     FORMAT: FORMATTERS,
     DEDUP: DEDUPERS,
+    SORT: SORTERS,
 }
 
 DEFAULT_NAMES: Dict[str, str] = {
@@ -48,6 +52,7 @@ DEFAULT_NAMES: Dict[str, str] = {
     FILTER: "llm",
     FORMAT: ZETA,
     DEDUP: "simhash",
+    SORT: "shuffle",
 }
 
 # --<type>-<name>.<occ?>.<param> 模式（匹配时传入 arg 或 arg[2:] 均可）

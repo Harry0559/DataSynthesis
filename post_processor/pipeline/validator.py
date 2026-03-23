@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, List
 
 from ..models.sample import RAW
-from ..steps import DEDUP, INTEGRATE
+from ..steps import INTEGRATE, SORT
 
 
 def validate_pipeline(
@@ -15,8 +15,7 @@ def validate_pipeline(
     """
     校验管线（基于步骤实例），单循环完成所有检查，返回最终输出类型。
     - 整合器：raw 时必须有且仅有一个且为首步，非 raw 时不允许
-    - 格式化器：数量不限
-    - 去重器：若存在必须在末尾，可多个串联
+    - 排序器：若存在必须在末尾，可多个串联
     - 类型链：相邻步骤输入输出类型匹配
     """
     from ..models.config import ConfigError
@@ -26,7 +25,7 @@ def validate_pipeline(
 
     current_type = input_type
     integrate_count = 0
-    seen_dedup = False
+    seen_sort = False
 
     for i, (step_type, step_instance) in enumerate(step_instances):
         if step_type == INTEGRATE:
@@ -42,12 +41,12 @@ def validate_pipeline(
             if integrate_count > 1:
                 raise ConfigError("整合器最多只能有一个")
 
-        if step_type == DEDUP:
-            seen_dedup = True
+        if step_type == SORT:
+            seen_sort = True
         else:
-            if seen_dedup:
+            if seen_sort:
                 raise ConfigError(
-                    "去重器必须在管线末尾，不允许在去重器之后出现其他步骤"
+                    "排序器必须在管线末尾，不允许在排序器之后出现其他步骤"
                 )
 
         if not step_instance.accepts(current_type):

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from ..models.config import PipelineConfig, PipelineStep, StepKey
 from ..models.sample import RAW, validate_sample
-from ..steps import DEDUP, FILTER, FORMAT
+from ..steps import DEDUP, FILTER, FORMAT, SORT
 from .loader import create_input_source
 from .validator import validate_pipeline
 from .writer import Writer
@@ -32,8 +32,8 @@ class RunStats:
 def run_postprocessor(config: PipelineConfig) -> RunStats:
     """
     执行管线：加载输入 → 按步骤处理 → 写入输出。
-    流式阶段：integrate → filters → formatter → buffer
-    批量阶段：dedupers 对 buffer 去重 → writer
+    流式阶段：integrate → filters → formatter → dedupers（逐条处理）
+    批量阶段：sorters 对 buffer 整体处理 → writer
     """
     input_source = create_input_source(config.input_path)
 
@@ -42,8 +42,8 @@ def run_postprocessor(config: PipelineConfig) -> RunStats:
     output_format = validate_pipeline(step_instances, input_source.input_type)
 
     output_path = _resolve_output_path(config, output_format)
-    stream_steps = [(t, s) for t, s in step_instances if t != DEDUP]
-    dedup_steps = [s for t, s in step_instances if t == DEDUP]
+    stream_steps = [(t, s) for t, s in step_instances if t != SORT]
+    sort_steps = [(t, s) for t, s in step_instances if t == SORT]
 
     stats = RunStats()
     buffer: List[Dict[str, Any]] = []
@@ -93,14 +93,32 @@ def run_postprocessor(config: PipelineConfig) -> RunStats:
                     dropped = True
                     break
                 current_format = step_instance.output_format_for(current_format)
+            elif step_type == DEDUP:
+                sample = step_instance.process(sample, current_format)
+                if sample is None:
+                    stats.dropped_by_dedup += 1
+                    dropped = True
+                    break
+                current_format = step_instance.output_format_for(current_format)
 
         if not dropped and sample is not None:
-            buffer.append(sample)
+            validated = validate_sample(sample, current_format)
+            if validated is None:
+                logger.error(
+                    "样本未通过最终格式校验（期望 %s），丢弃",
+                    current_format,
+                )
+            elif current_format != output_format:
+                logger.error(
+                    "格式链异常：current_format=%s 与 output_format=%s 不一致，丢弃",
+                    current_format,
+                    output_format,
+                )
+            else:
+                buffer.append(validated)
 
-    before_dedup = len(buffer)
-    for deduper in dedup_steps:
-        buffer = deduper.deduplicate(buffer, output_format)
-    stats.dropped_by_dedup = before_dedup - len(buffer)
+    for _, sorter in sort_steps:
+        buffer = sorter.sort(buffer)
 
     with Writer(output_path) as w:
         for item in buffer:

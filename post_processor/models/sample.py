@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, TypedDict
+from typing import Any, Dict, List, Literal, NotRequired, TypedDict
 
 from pydantic import ConfigDict, TypeAdapter, ValidationError
 
@@ -66,6 +66,7 @@ class ZetaDebugSample(TypedDict, total=True):
     timestamp: str
     collector: str
     format: Literal["zeta_debug"]
+    score: NotRequired[Dict[str, Any]]
     metadata: Dict[str, Any]
 
 

@@ -49,6 +49,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     parser = _build_parser()
     args, unknown = parser.parse_known_args()
 

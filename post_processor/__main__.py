@@ -32,6 +32,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
   # 从已有 jsonl 继续处理
   python -m post_processor --input ./data/standard.jsonl --pipeline "filter:edit,format:zeta,dedup"
+
+  # 丢弃 extra.capture_ok 为 false 的标准样本（反向筛选加 --filter-capture_ok.keep_capture_fail_only true）
+  python -m post_processor --input ./data/standard.jsonl --pipeline "filter:capture_ok,format:zeta"
 """,
     )
     p.add_argument("--input", required=True, help="输入路径（文件夹或 jsonl 文件）")

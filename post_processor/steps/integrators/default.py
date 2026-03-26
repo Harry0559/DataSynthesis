@@ -101,7 +101,7 @@ class DefaultIntegrator(IntegratorBase):
         self._id_counter += 1
         sample_id = self._id_counter
 
-        return {
+        sample: Dict[str, Any] = {
             "id": sample_id,
             "file": file,
             "cursor": cursor,
@@ -117,3 +117,7 @@ class DefaultIntegrator(IntegratorBase):
             "format": STANDARD,
             "metadata": metadata,
         }
+        extra_raw = record.get("extra")
+        if isinstance(extra_raw, dict) and len(extra_raw) > 0:
+            sample["extra"] = extra_raw
+        return sample

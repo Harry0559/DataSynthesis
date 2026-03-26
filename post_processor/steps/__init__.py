@@ -20,7 +20,7 @@ SORT = "sort"
 
 # 注册表
 from .dedupers import DeduperBase, SimHashDeduplicator
-from .filters import ContFilter, EditFilter, FilterBase, LlmFilter
+from .filters import CaptureOkFilter, ContFilter, EditFilter, FilterBase, LlmFilter
 from .formatters import FormatterBase, ZetaDebugFormatter, ZetaFormatter
 from .integrators import DefaultIntegrator, IntegratorBase
 from .sorters import ShuffleSorter, SorterBase
@@ -30,6 +30,7 @@ FILTERS: Dict[str, type] = {
     "llm": LlmFilter,
     "edit": EditFilter,
     "cont": ContFilter,
+    "capture_ok": CaptureOkFilter,
 }
 FORMATTERS: Dict[str, type] = {
     ZETA: ZetaFormatter,

@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 from .base import FilterBase
+from .capture_ok import CaptureOkFilter
 from .cont import ContFilter
 from .edit import EditFilter
 from .llm import LlmFilter
 
-__all__ = ["FilterBase", "LlmFilter", "EditFilter", "ContFilter"]
+__all__ = [
+    "FilterBase",
+    "LlmFilter",
+    "EditFilter",
+    "ContFilter",
+    "CaptureOkFilter",
+]

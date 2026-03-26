@@ -77,9 +77,7 @@ class CursorAdapter(EditorAdapter):
         time.sleep(0.1)
         p.send_hotkey(p.get_modifier_key(), "p")
         time.sleep(0.1)
-        for c in relative_path:
-            p.type_char(c)
-            time.sleep(0.01)
+        p.paste_text(relative_path)
         p.send_key("enter")
         time.sleep(0.1)
 
@@ -90,9 +88,7 @@ class CursorAdapter(EditorAdapter):
         time.sleep(0.1)
         p.send_hotkey(p.get_modifier_key(), "p")
         time.sleep(0.1)
-        for c in f":{line}:{col}":
-            p.type_char(c)
-            time.sleep(0.01)
+        p.paste_text(f":{line}:{col}")
         p.send_key("enter")
         time.sleep(0.1)
 

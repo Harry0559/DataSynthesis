@@ -158,6 +158,11 @@ class DarwinPlatformHandler(PlatformHandler):
 
         subprocess.run(["osascript", "-e", script], check=True)
 
+    def paste_text(self, text: str) -> None:
+        """通过剪贴板粘贴整段文本，减少逐字符输入的系统调用。"""
+        subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        self.send_hotkey("command", "v")
+
     def get_modifier_key(self) -> str:
         """macOS 使用 command 作为主修饰键。"""
         return "command"

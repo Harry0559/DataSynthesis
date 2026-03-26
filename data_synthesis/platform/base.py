@@ -28,6 +28,11 @@ class PlatformHandler(ABC):
         ...
 
     @abstractmethod
+    def paste_text(self, text: str) -> None:
+        """将文本粘贴到当前焦点输入框。"""
+        ...
+
+    @abstractmethod
     def activate_window(self, app_name: str) -> None:
         """激活指定应用窗口"""
         ...

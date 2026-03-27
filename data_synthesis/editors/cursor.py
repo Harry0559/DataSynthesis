@@ -48,12 +48,12 @@ class CursorAdapter(EditorAdapter):
         p = self._platform
 
         p.activate_window("Cursor")  # 激活窗口，确保焦点在 Cursor
-        time.sleep(0.1)
+        time.sleep(0.05)
         mod = p.get_modifier_key()
         p.send_hotkey(mod, "1")  # 聚焦编辑器，否则后续快捷键无效
-        time.sleep(0.1)
+        time.sleep(0.05)
         p.send_hotkey(mod, "r")  # 打开命令面板后输入 F 关闭文件夹
-        time.sleep(0.1)
+        time.sleep(0.01)
         p.type_char("f")
         # 等待 workspace 被关闭（state == "closed"）
         self._wait_workspace_state(expect_state="closed", expect_folder=None, timeout=10.0)
@@ -74,23 +74,25 @@ class CursorAdapter(EditorAdapter):
         """通过 Quick Open (Cmd+P) 打开文件，relative_path 为相对路径。"""
         p = self._platform
         p.activate_window("Cursor")
-        time.sleep(0.1)
+        time.sleep(0.05)
         p.send_hotkey(p.get_modifier_key(), "p")
-        time.sleep(0.1)
+        time.sleep(0.05)
         p.paste_text(relative_path)
+        time.sleep(0.05)
         p.send_key("enter")
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     def goto(self, line: int, col: int) -> None:
         """通过 Quick Open 输入 ":line:col" 定位到指定行列。"""
         p = self._platform
         p.activate_window("Cursor")
-        time.sleep(0.1)
+        time.sleep(0.05)
         p.send_hotkey(p.get_modifier_key(), "p")
-        time.sleep(0.1)
+        time.sleep(0.05)
         p.paste_text(f":{line}:{col}")
+        time.sleep(0.05)
         p.send_key("enter")
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     def type_char(self, char: str) -> None:
         """透传 Platform 层输入单个字符。"""
@@ -126,13 +128,13 @@ class CursorAdapter(EditorAdapter):
         log_path = self._get_tab_log_path(current_file_abs_path)
         self._ensure_log_deleted(log_path)
         p.activate_window("Cursor")
-        time.sleep(0.1)
+        time.sleep(0.05)
         self._open_output_panel()
-        time.sleep(0.1)
+        time.sleep(0.05)
         self._open_save_dialog_and_confirm()
-        time.sleep(0.1)
+        time.sleep(0.05)
         self._clear_output_panel()
-        time.sleep(0.1)
+        time.sleep(0.05)
         raw = self._wait_and_read_log(log_path, timeout=5.0)
         result = self._parse_tab_log(raw)
         self._delete_log(log_path)
@@ -225,7 +227,7 @@ class CursorAdapter(EditorAdapter):
 
     def _wait_and_read_log(self, log_path: str, timeout: float) -> str:
         """等待日志文件出现并读取其内容，超时返回空字符串。"""
-        interval = 0.2
+        interval = 0.1
         elapsed = 0.0
         while elapsed < timeout:
             if os.path.isfile(log_path):

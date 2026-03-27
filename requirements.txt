@@ -6,6 +6,9 @@ openai>=1.0
 python-dotenv>=1.0
 tqdm>=4.0
 
+# platform (darwin)
+pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"
+
 # TODO: 后续按模块需要逐步添加
 # pyautogui>=0.9.54                              # platform 层键盘/鼠标模拟
 # pyobjc-framework-Quartz>=10.0; sys_platform == "darwin"  # macOS 窗口管理

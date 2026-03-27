@@ -39,6 +39,8 @@ def run_batch(
     executed_total = 0
     success_count = 0
     failure_count = 0
+    cooldown_count = 0
+    cooldown_total_seconds = 0.0
     stop_reason = "normal"  # "timeout" / "max_items" / "normal"
 
     for task_provider in batch_provider.iter_task_providers():
@@ -64,6 +66,21 @@ def run_batch(
             success_count += 1
         else:
             failure_count += 1
+
+        # 周期性冷却：仅在两条 pipeline 之间执行，不打断单次 pipeline
+        if (
+            batch_config.cooldown_every_n is not None
+            and batch_config.cooldown_every_n > 0
+            and batch_config.cooldown_seconds > 0
+            and executed_total % batch_config.cooldown_every_n == 0
+        ):
+            print(
+                f"  [batch-cooldown] 已执行 {executed_total} 条，"
+                f"休息 {batch_config.cooldown_seconds:.2f} 秒..."
+            )
+            time.sleep(batch_config.cooldown_seconds)
+            cooldown_count += 1
+            cooldown_total_seconds += batch_config.cooldown_seconds
 
     end_ts = time.time()
     total_duration = end_ts - start_ts
@@ -100,5 +117,17 @@ def run_batch(
         print(f"  配置的时间上限: {batch_config.max_duration_seconds} 秒")
     if batch_config.max_items_total is not None:
         print(f"  配置的总条数上限: {batch_config.max_items_total}")
+    if batch_config.cooldown_every_n is not None and batch_config.cooldown_seconds > 0:
+        cooldown_seconds_int = int(round(cooldown_total_seconds))
+        cd_h, cd_rem = divmod(cooldown_seconds_int, 3600)
+        cd_m, cd_s = divmod(cd_rem, 60)
+        cooldown_duration_str = f"{cd_h:02d}:{cd_m:02d}:{cd_s:02d}"
+        print(
+            "  周期性冷却: "
+            f"每 {batch_config.cooldown_every_n} 条休息 "
+            f"{batch_config.cooldown_seconds:.2f} 秒"
+        )
+        print(f"  冷却次数: {cooldown_count}")
+        print(f"  冷却总时长: {cooldown_duration_str}")
 
     print("================================\n")

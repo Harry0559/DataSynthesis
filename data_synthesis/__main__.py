@@ -231,6 +231,19 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="批量模式下最多执行的 pipeline 条目总数（默认不限制）",
     )
+    exe.add_argument(
+        "--batch-cooldown-every",
+        type=int,
+        metavar="N",
+        help="批量模式下每执行 N 条 pipeline 后冷却一次（默认不启用）",
+    )
+    exe.add_argument(
+        "--batch-cooldown-seconds",
+        type=float,
+        default=0.0,
+        metavar="SEC",
+        help="批量模式每次冷却时长（秒，默认: 0.0）",
+    )
 
     # ── 输出配置 ──
     out = parser.add_argument_group("输出配置")
@@ -247,6 +260,13 @@ def _build_parser() -> argparse.ArgumentParser:
 def _validate(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.sample_index is not None and args.sample_index < 0:
         parser.error("--sample-index 必须为非负整数")
+
+    if args.batch_cooldown_every is not None and args.batch_cooldown_every <= 0:
+        parser.error("--batch-cooldown-every 必须为正整数")
+    if args.batch_cooldown_seconds < 0:
+        parser.error("--batch-cooldown-seconds 必须为非负数")
+    if args.batch_cooldown_every is not None and args.batch_cooldown_seconds == 0:
+        parser.error("启用 --batch-cooldown-every 时，--batch-cooldown-seconds 不能为 0")
 
     if not args.dry_run:
         if args.editor is None:
@@ -338,6 +358,8 @@ def main():
         batch_config = BatchConfig(
             max_duration_seconds=args.batch_max_duration,
             max_items_total=args.batch_max_items_total,
+            cooldown_every_n=args.batch_cooldown_every,
+            cooldown_seconds=args.batch_cooldown_seconds,
         )
 
         run_batch(

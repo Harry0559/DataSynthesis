@@ -133,12 +133,16 @@ class SessionConfig:
 
 @dataclass
 class BatchConfig:
-    """批量运行配置：仅负责超时与总次数刹车。"""
+    """批量运行配置：负责超时、总次数与周期性冷却。"""
 
     # 整个批量运行的时间上限（秒），None 表示不限制
     max_duration_seconds: Optional[float] = None
     # 全局最多执行多少条 pipeline（跨所有文件/数据源），None 表示不限制
     max_items_total: Optional[int] = None
+    # 周期性冷却：每执行多少条 pipeline 冷却一次；None 表示不启用
+    cooldown_every_n: Optional[int] = None
+    # 每次冷却时长（秒）；与 cooldown_every_n 搭配使用
+    cooldown_seconds: float = 0.0
 
 
 @dataclass

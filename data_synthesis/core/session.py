@@ -45,63 +45,85 @@ def run_session(
     print("DataSynthesis Pipeline")
     print("=" * 50)
 
-    # ====== 阶段一：获取任务（含环境准备） ======
-    with task_provider.provide() as task:
-        type_plan = task.type_plan
-        context = task.context
-        observe_config = type_plan.observe_config
+    collector_inited = False
+    finalize_done = False
 
-        print(f"\n[阶段一] 任务就绪")
-        print(f"  工作目录: {context.work_dir}")
-        print(f"  文件数量: {len(type_plan.file_init_states)}")
-        print(f"  操作数量: {len(type_plan.actions)}")
+    try:
+        # ====== 阶段一：获取任务（含环境准备） ======
+        with task_provider.provide() as task:
+            type_plan = task.type_plan
+            context = task.context
+            observe_config = type_plan.observe_config
 
-        # ====== 阶段二：准备编辑器 ======
-        print(f"\n[阶段二] 准备编辑器环境")
-        if not config.dry_run:
-            editor.restart(context.work_dir)  # type: ignore[union-attr]
-        else:
-            print("  (dry-run: 跳过编辑器操作)")
+            print(f"\n[阶段一] 任务就绪")
+            print(f"  工作目录: {context.work_dir}")
+            print(f"  文件数量: {len(type_plan.file_init_states)}")
+            print(f"  操作数量: {len(type_plan.actions)}")
 
-        # ====== 阶段三：执行 ======
-        print(f"\n[阶段三] 开始执行")
+            # ====== 阶段二：准备编辑器 ======
+            print(f"\n[阶段二] 准备编辑器环境")
+            if not config.dry_run:
+                editor.restart(context.work_dir)  # type: ignore[union-attr]
+            else:
+                print("  (dry-run: 跳过编辑器操作)")
 
-        session_dir: Optional[str] = None
-        if not config.dry_run:
-            session_dir = _create_session_dir(
-                config.output_dir, type_plan, context
+            # ====== 阶段三：执行 ======
+            print(f"\n[阶段三] 开始执行")
+
+            session_dir: Optional[str] = None
+            if not config.dry_run:
+                session_dir = _create_session_dir(
+                    config.output_dir, type_plan, context
+                )
+                _save_session_meta(session_dir, type_plan, context)
+                type_plan.to_json(os.path.join(session_dir, "type_plan.json"))
+                print(f"  输出目录: {session_dir}")
+
+            if collector and session_dir:
+                initial_contents = {
+                    f.relative_path: f.content
+                    for f in type_plan.file_init_states
+                }
+                collector.init_session(
+                    session_dir,
+                    observe_config,
+                    work_context=context,
+                    initial_contents=initial_contents,
+                )
+                collector_inited = True
+
+            executor = Executor(
+                editor=editor,
+                collector=collector,
+                observe_config=observe_config,
+                type_interval=config.type_interval,
+                delete_interval=config.delete_interval,
+                dry_run=config.dry_run,
             )
-            _save_session_meta(session_dir, type_plan, context)
-            type_plan.to_json(os.path.join(session_dir, "type_plan.json"))
-            print(f"  输出目录: {session_dir}")
+            executor.execute(type_plan)
 
-        if collector and session_dir:
-            initial_contents = {
-                f.relative_path: f.content
-                for f in type_plan.file_init_states
-            }
-            collector.init_session(
-                session_dir,
-                observe_config,
-                work_context=context,
-                initial_contents=initial_contents,
-            )
+            if collector:
+                collector.finalize()
+                finalize_done = True
 
-        executor = Executor(
-            editor=editor,
-            collector=collector,
-            observe_config=observe_config,
-            type_interval=config.type_interval,
-            delete_interval=config.delete_interval,
-            dry_run=config.dry_run,
+            if session_dir:
+                print(f"\n  数据已保存: {session_dir}")
+
+    except Exception as exc:
+        print(
+            f"\n[错误] Pipeline 执行失败: "
+            f"{type(exc).__name__}: {exc}"
         )
-        executor.execute(type_plan)
-
-        if collector:
-            collector.finalize()
-
-        if session_dir:
-            print(f"\n  数据已保存: {session_dir}")
+        if collector_inited and collector and not finalize_done:
+            try:
+                collector.finalize()
+            except Exception:
+                pass
+        print(f"\n[阶段四] 环境已恢复")
+        print("\n" + "=" * 50)
+        print("Pipeline 失败")
+        print("=" * 50)
+        return False
 
     # ====== 阶段四：自动清理（退出 with）======
     print(f"\n[阶段四] 环境已恢复")

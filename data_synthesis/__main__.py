@@ -362,13 +362,15 @@ def main():
             cooldown_seconds=args.batch_cooldown_seconds,
         )
 
-        run_batch(
+        batch_ok = run_batch(
             batch_provider=batch_provider,
             config=config,
             editor=editor,
             collector=collector,
             batch_config=batch_config,
         )
+        if not batch_ok:
+            sys.exit(1)
     else:
         task_provider = _build_task_provider(args)
         success = run_session(

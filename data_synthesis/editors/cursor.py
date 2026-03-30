@@ -47,20 +47,21 @@ class CursorAdapter(EditorAdapter):
         work_dir_abs = os.path.abspath(work_dir)
         p = self._platform
 
-        p.activate_window("Cursor")  # 激活窗口，确保焦点在 Cursor
-        time.sleep(0.05)
-        mod = p.get_modifier_key()
-        p.send_hotkey(mod, "1")  # 聚焦编辑器，否则后续快捷键无效
-        time.sleep(0.05)
-        p.send_hotkey(mod, "r")  # 打开命令面板后输入 F 关闭文件夹
-        time.sleep(0.01)
-        p.type_char("f")
-        # 等待 workspace 被关闭（state == "closed"）
-        self._wait_workspace_state(expect_state="closed", expect_folder=None, timeout=10.0)
+        if p.is_app_running("Cursor"):
+            p.activate_window("Cursor")  # 激活窗口，确保焦点在 Cursor
+            time.sleep(0.05)
+            mod = p.get_modifier_key()
+            p.send_hotkey(mod, "1")  # 聚焦编辑器，否则后续快捷键无效
+            time.sleep(0.05)
+            p.send_hotkey(mod, "r")  # 打开命令面板后输入 F 关闭文件夹
+            time.sleep(0.01)
+            p.type_char("f")
+            # 等待 workspace 被关闭（state == "closed"）
+            self._wait_workspace_state(expect_state="closed", expect_folder=None, timeout=10.0)
 
-        # 退出应用并等待进程真正结束
-        p.quit_app("Cursor")
-        p.wait_for_app_exit("Cursor", timeout=10.0)
+            # 退出应用并等待进程真正结束
+            p.quit_app("Cursor")
+            p.wait_for_app_exit("Cursor", timeout=10.0)
 
         # 用工作目录重新启动，并等待 workspace 打开到目标目录
         p.open_app_with_folder("Cursor", work_dir_abs)
@@ -78,9 +79,9 @@ class CursorAdapter(EditorAdapter):
         p.send_hotkey(p.get_modifier_key(), "p")
         time.sleep(0.05)
         p.paste_text(relative_path)
-        time.sleep(0.05)
+        time.sleep(0.01)
         p.send_key("enter")
-        time.sleep(0.05)
+        time.sleep(0.5)
 
     def goto(self, line: int, col: int) -> None:
         """通过 Quick Open 输入 ":line:col" 定位到指定行列。"""
@@ -90,7 +91,7 @@ class CursorAdapter(EditorAdapter):
         p.send_hotkey(p.get_modifier_key(), "p")
         time.sleep(0.05)
         p.paste_text(f":{line}:{col}")
-        time.sleep(0.05)
+        time.sleep(0.01)
         p.send_key("enter")
         time.sleep(0.05)
 

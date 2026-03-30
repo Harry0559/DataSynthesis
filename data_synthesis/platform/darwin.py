@@ -6,10 +6,16 @@ macOS 平台实现
       否则 Quartz 键盘事件可能被系统拦截。
 """
 
-import subprocess
 from typing import Dict, Tuple
 
 import Quartz
+from AppKit import (
+    NSApplicationActivateIgnoringOtherApps,
+    NSPasteboard,
+    NSPasteboardTypeString,
+    NSWorkspace,
+)
+from CoreFoundation import CFRunLoopRunInMode, kCFRunLoopDefaultMode
 
 from .base import PlatformHandler
 
@@ -135,8 +141,10 @@ class DarwinPlatformHandler(PlatformHandler):
         self._tap_key(key_code, flags=flags)
 
     def paste_text(self, text: str) -> None:
-        """通过剪贴板粘贴整段文本，减少逐字符输入的系统调用。"""
-        subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        """通过 NSPasteboard 写入剪贴板后粘贴（零子进程）。"""
+        pb = NSPasteboard.generalPasteboard()
+        pb.clearContents()
+        pb.setString_forType_(text, NSPasteboardTypeString)
         self.send_hotkey("command", "v")
 
     def type_char(self, char: str) -> None:
@@ -163,37 +171,41 @@ class DarwinPlatformHandler(PlatformHandler):
         return "command"
 
     def activate_window(self, app_name: str) -> None:
-        """使用 open -a 激活指定应用窗口。"""
-        subprocess.run(["open", "-a", app_name], check=False)
+        """使用 NSRunningApplication 激活指定应用窗口（零子进程）。"""
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, False)
+        workspace = NSWorkspace.sharedWorkspace()
+        for app in workspace.runningApplications():
+            if app.localizedName() == app_name:
+                app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+                return
 
     def open_app_with_folder(self, app_name: str, folder_path: str) -> None:
-        """使用 open -a 启动应用并打开指定目录。"""
-        subprocess.run(["open", "-a", app_name, folder_path], check=False)
+        """使用 NSWorkspace 启动应用并打开指定目录（零子进程）。"""
+        workspace = NSWorkspace.sharedWorkspace()
+        workspace.openFile_withApplication_(folder_path, app_name)
 
     def launch_app(self, app_name: str) -> None:
-        """使用 open -a 启动应用。"""
-        subprocess.run(["open", "-a", app_name], check=False)
+        """使用 NSWorkspace 启动应用（零子进程）。"""
+        workspace = NSWorkspace.sharedWorkspace()
+        workspace.launchApplication_(app_name)
 
     def quit_app(self, app_name: str) -> None:
-        """使用 AppleScript 关闭应用。"""
-        script = f'tell application "{app_name}" to quit'
-        subprocess.run(["osascript", "-e", script], check=False)
+        """使用 NSRunningApplication.terminate 关闭应用（零子进程）。"""
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, False)
+        workspace = NSWorkspace.sharedWorkspace()
+        for app in workspace.runningApplications():
+            if app.localizedName() == app_name:
+                app.terminate()
+                return
 
     def is_app_running(self, app_name: str) -> bool:
-        """
-        使用 AppleScript 判断应用是否仍在运行。
-
-        返回:
-            True 表示有同名进程在运行，False 表示未运行或查询失败。
-        """
-        script = f'tell application "System Events" to (name of processes) contains "{app_name}"'
-        result = subprocess.run(
-            ["osascript", "-e", script],
-            check=False,
-            capture_output=True,
-            text=True,
+        """使用 NSWorkspace 判断应用是否在运行（零子进程）。"""
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, False)
+        workspace = NSWorkspace.sharedWorkspace()
+        return any(
+            app.localizedName() == app_name
+            for app in workspace.runningApplications()
         )
-        return result.stdout.strip().lower() == "true"
 
     def _post_key_event(self, key_code: int, is_down: bool, flags: int = 0) -> None:
         event = Quartz.CGEventCreateKeyboardEvent(None, key_code, is_down)

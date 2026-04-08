@@ -131,27 +131,17 @@ npm run package
 
 ---
 
-## 与 DataSynthesis 的集成
+## 与 DataSynthesis 的关系
 
-在 DataSynthesis 项目中，`Executor` 会在 `ObserveAction` 时从该文件读取光标位置，例如：
+这个扩展可以作为 DataSynthesis 生态里的一个辅助工具使用，用来把编辑器中的最新光标位置持续写到本地文件，方便实验、调试或后续扩展时读取。
 
-```python
-# data_synthesis/executors/executor.py 中的逻辑示意
-line, col = _fetch_cursor_position_from_file("~/.cursor-position-tracker.json")
-collector.collect(
-    relative_path=current_file or "",
-    action_index=action_index,
-    line=line,
-    col=col,
-)
-```
+但需要特别说明的是：
 
-因此，只要：
+- 当前仓库中的 `data_synthesis` 主流程**并不依赖**这个扩展
+- 当前 `Executor` 也**没有**在 `ObserveAction` 时读取本插件输出的 JSON 文件
+- 因此，这个扩展更适合被理解为“可选的辅助能力”，而不是当前主链路的必需组件
 
-1. Cursor 中安装并启用了本插件  
-2. 插件在后台持续写入 `~/.cursor-position-tracker.json`  
-
-DataSynthesis 在每次 Observe 时就能拿到真实的光标行列位置。
+如果你只是想跑通当前仓库的主流程，优先关注的是 `workspace-state-tracker-extension`，而不是本插件。
 
 ---
 

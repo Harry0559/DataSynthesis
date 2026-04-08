@@ -1,285 +1,183 @@
-# DataSynthesis 设计上下文
+# DataSynthesis 设计背景与历史决策
 
-本文档记录项目从构思到第一版落地的完整设计讨论与决策，供后续在新工程中延续上下文、继续优化代码时参考。
+本文档记录的是项目的设计背景与关键历史决策，用来解释“为什么这个仓库被设计成现在这样”，而不是当前实现的权威使用说明。
 
----
+当前实际使用方法、支持范围和命令，以以下文档为准：
 
-## 一、背景与动机
+- 仓库根目录 `README.md`
+- `data_synthesis/README.md`
+- `post_processor/README.md`
 
-### 1.1 从 CursorSynthesis 到新方案
-
-原工程（CursorSynthesis）主要做两件事：
-
-- **代码输入练习**：在 Cursor 中自动逐字输入，模拟真实编码
-- **Ghost Text 数据采集**：通过 YOLO 检测 + 区域 OCR（LLM）从截图中提取补全建议
-
-新方案的目标变化：
-
-- **不再依赖视觉链路**：不需要 YOLO、OCR、截图
-- **采集方式改为**：每次敲入字符后，通过「快捷键保存 Cursor Tab 日志」的方式捕获当前模型输出并记录
-- **保留并复用**：选 commit 构造样本、typer 逐字符输入、session 管理等能力
-
-### 1.2 方案选择：新工程 vs 改旧工程
-
-结论：**新开工程更合适**。
-
-原因简要：
-
-- 旧工程中采集与 vision 深度耦合：session 直接造 ghost/screenshot 的 callback 工厂并 import vision、typer 的 `type_with_collection` 与 `GhostCollectResult`/Tab 接受强绑定。
-- 若在旧工程上删 vision、改采集，会留下大量死代码和 `if not use_vision` 分支，Session 和 Typer 都要大改。
-- 新工程可以只实现「快捷键保存 Tab 日志 + 读日志写 jsonl」这一条采集路径，依赖少、结构清晰，策略/模式/平台等概念可拷贝或精简复用。
+如果本文与当前代码或上述 README 有冲突，请以代码和 README 为准。
 
 ---
 
-## 二、旧工程（CursorSynthesis）流程与问题
+## 一、背景：为什么会有这个项目
 
-### 2.1 整体流程
+这个项目的直接背景，是把一条“代码编辑 + 模型输出采集”的实验链路，从旧工程中拆出来做成更清晰的新仓库。
 
-```
-__main__ → run_auto_type_session / run_ghost_text_collection_session / run_screenshot_collection_session
-         → _run_session_core(...)
-```
+旧方案的主要问题不是“功能不够”，而是结构上过于依赖视觉采集链路，导致后续想把采集方式换掉时，改动范围会非常大。
 
-- **阶段一**：校验 Cursor 配置 → `strategy.git_session()` → `strategy.prepare()` → `mode.process()` → 创建 session 目录、写 meta、生成复现命令
-- **阶段二**：`restart_cursor(repo_path)`
-- **阶段三**：对每个 segment：`open_and_locate` → `typer.type_with_collection()` 或 `typer.type_content()` → `save_file()`
-- **阶段四**：退出 `with git_session` 时恢复 .git 与原始状态
+当时的核心变化方向是：
 
-### 2.2 冗余与耦合（为何难以在旧工程上改）
-
-| 问题 | 说明 |
-|------|------|
-| 三个入口函数重复 | `run_auto_type_session` / `run_ghost_text_collection_session` / `run_screenshot_collection_session` 参数列表绝大部分相同，仅 session_type、collect_callback_factory 等不同 |
-| Session 既编排又管采集实现 | `_create_ghost_text_callback_factory`、`_create_screenshot_callback_factory` 写在 session.py，直接 import vision、editor.typers.collection |
-| Typer 与 Ghost+Tab 接受绑死 | `type_with_collection` 的 callback 返回 `GhostCollectResult`，用于写 jsonl 且驱动 try_tab_accept；新方案只需「通知采集」不需要返回值参与 Tab 逻辑 |
-| create_typer 按是否 ghost 分支 | 无采集：`create_typer(strategy)`；Ghost：`create_typer(strategy, op_logger, history_tracker)` |
-| 复现命令生成集中在 Session | `_generate_reproduce_commands` 写死所有策略/模式/采集参数，加新选项就要改 Session |
-| 目录与元数据与采集类型绑定 | session_meta 里 session_type、collect_interval、auto_accept 等与具体采集方式耦合 |
+- 不再依赖截图、YOLO、OCR
+- 采集方式转为读取编辑器可导出的日志
+- 保留“真实编辑过程重放”这条主线
+- 把数据源、编辑计划、执行器、采集器明确拆层
 
 ---
 
-## 三、新方案核心思路
+## 二、为什么没有沿着旧工程继续改
 
-### 3.1 数据源与统一格式
+当时选择“新开工程”，而不是直接在旧工程上做大改，主要是因为旧工程里存在几类高耦合问题：
 
-- **数据源多样**：已下载的若干工程文件夹（含真实 commit）、或整理好的 JSONL 文件（记录某工程某 commit 下的单文件修改）。
-- **统一加工**：有统一模块处理这些数据源，输出**可实际操作的具体任务**；加工方法多样（选 commit、选样本、规划操作顺序等），但**交给下游的产物格式统一**。
-- **统一格式**：即 **TypePlan**：文件初始状态 + 有序操作链（TypeAction / DeleteAction / ObserveAction）+ 观察配置与元数据，且**可序列化为 JSON**。
+- session 编排层和具体采集实现绑得很紧
+- 输入执行逻辑和某种特定采集返回值深度耦合
+- 入口函数按采集类型分叉，参数和流程大量重复
+- 元数据、输出目录、复现命令都与旧采集方式混在一起
 
-### 3.2 准备与还原归属
-
-- 处理数据源的模块**同时具备准备和还原能力**：下游拿着它的输出，能清楚如何在编辑器中准备好初始环境（切 commit 或建临时单文件）、并在实验结束后无感恢复。
-- **设计结论**：不把「如何准备」写进 TypePlan（不在 TypePlan 里塞 SetupInstructions）。改为 **TaskProvider 内部自己准备环境**，只交出「已就绪的工作目录 + TypePlan」；Session/Executor 只消费 `Task(type_plan, context)`，不关心环境是怎么准备的。这样加新数据源只需新 TaskProvider，执行层零改动。
-
-### 3.3 操作链与 Observe
-
-- 操作链显式包含**何时停顿观察**：例如「先在第 5 行第 6 列快速键入 5 个字符 → 观察日志 → 再在第 8 行第 10 列键入 10 个字符 → 观察」。
-- 抽象为有序 **Action 序列**：`TypeAction`、`DeleteAction`、`ObserveAction`，Executor 按序执行；遇 `ObserveAction` 则通知 Collector 做一次采集。
-- **ObserveAction 设计**：ObserveAction 仅为「在此处做一次观察」的标记，无额外参数；所有 Observe 行为（pre_wait、post_wait 等）统一由全局 ObserveConfig 控制（或未来 CLI 覆盖）。
-
-### 3.4 跨平台、跨 IDE、配置
-
-- 目标：跨平台、跨 IDE，通过简单配置即可在不同环境运行。
-- 当前策略：采用「代码内默认值 + CLI 参数覆盖」的简单路径，主要通过 CLI 控制行为，避免额外的配置文件复杂度。
+换句话说，旧工程更像是“为某一代采集方案长出来的系统”，而新仓库希望变成“能承载不同数据源和重放策略的骨架”。
 
 ---
 
-## 四、核心数据结构（TypePlan 与 Action）
+## 三、设计时的核心判断
 
-### 4.1 Action 原语
+### 3.1 统一交接物：`TypePlan`
 
-- **TypeAction**：`file`, `line`, `col`, `content`（可单字符可一批）
-- **DeleteAction**：`file`, `line`, `col`, `count`（向后删除）
-- **ObserveAction**：无额外参数，仅表示在此处做一次观察；行为由 ObserveConfig 统一控制
+设计时最重要的决定之一，是在数据源处理侧和执行侧之间引入统一中间格式 `TypePlan`。
 
-Action 序列可跨文件交替（每个 Action 带 `file`），Executor 在 `file` 变化时切换当前文件。
+这样做的意义是：
 
-### 4.2 TypePlan（唯一交接物）
+- 上游可以只关心“如何把一条样本转成动作序列”
+- 下游可以只关心“如何执行这些动作并采集”
+- 中间结果可以落盘、复查、调试
 
-- **file_init_states**：各文件初始内容（声明「应该有什么」）
-- **actions**：有序操作链
-- **observe_config**：Observe 全局默认
-- **metadata**：来源、策略、seed 等，仅记录用
+`TypePlan` 这个思路一直延续到现在，仍然是当前架构的中心。
 
-不含「如何准备环境」的过程性信息；准备由 TaskProvider 在内部完成。
+### 3.2 环境准备不放进 `TypePlan`
 
-### 4.3 数据源侧：ChangeSet
+另一个关键决策，是不把“如何准备工作目录、如何恢复环境”这类信息塞进 `TypePlan`。
 
-- **FileChange**：`relative_path`, `before_content`, `after_content`, `is_new_file`, `is_deleted`
-- **ChangeSet**：`file_changes` + `metadata`
+当时的判断是：
 
-DataSource 产出 ChangeSet；PlanStrategy 消费 ChangeSet 产出 TypePlan。
+- `TypePlan` 应该描述“做什么”
+- Provider / TaskProvider 应该负责“在哪做、怎么准备”
 
-### 4.4 Task 与 WorkContext
+这使得执行器只需要消费 `Task(type_plan, context)`，不需要知道数据源来自哪里，也不需要知道环境是如何搭出来的。
 
-- **WorkContext**：`work_dir`（已就绪的工作目录）、`file_paths`（relative → absolute）；可选 `source_type`、`source_path_segments`（全新采集时由 Provider 填充，用于 session 输出路径分层；复现时为 None）。
-- **Task**：`type_plan` + `context`
+### 3.3 显式的 `ObserveAction`
 
-TaskProvider 通过 `provide()` 上下文管理器 yield `Task`；退出 with 时自动恢复环境。
+设计时没有把观察逻辑做成“执行器里的隐式 side effect”，而是把观察点显式建模成 `ObserveAction`。
 
----
+这样做的好处是：
 
-## 五、模块职责与扩展点
-
-### 5.1 TaskProvider（扩展点①）
-
-- 职责：从数据源提取变更 → 调用 PlanStrategy 生成 TypePlan → 准备环境 → yield Task → 退出时恢复。
-- 子类实现：`_extract_changes()`、`_manage_environment(type_plan)`。
-- 实现：`PlanFileProvider`（从 JSON 加载，无 Strategy）、`GitRepoProvider`（TODO）、`JsonlProvider`（TODO）。
-
-### 5.2 PlanStrategy（扩展点②）
-
-- 职责：`generate(change_set, observe_config) -> TypePlan`。
-- 实现：`DiffReplayStrategy`（TODO）、`BatchStrategy`（TODO）等。
-
-### 5.3 Executor
-
-- 职责：遍历 `type_plan.actions`，按类型 dispatch：Type → 定位+输入，Delete → 定位+删除，Observe → 保存文件+调用 Collector。
-- 支持 dry-run（不操作编辑器，只打印日志）。
-
-### 5.4 Collector（扩展点③）
-
-- 职责：`init_session(session_dir, observe_config)`；`collect(file_path, char_index)`；`finalize()`。
-- 实现：`TabLogCollector`（跨 IDE，依赖 editor.capture_tab_log + 写 jsonl）。
-
-### 5.5 EditorAdapter（扩展点④）
-
-- 职责：`restart(work_dir)`、`open_file`、`goto`、`type_text`、`delete_chars`、`save_file`、`send_hotkey`、`validate_settings`。
-- 实现：`CursorAdapter`（TODO）等。
-
-### 5.6 Platform
-
-- 职责：OS 级键盘、窗口、启动/退出应用等。
-- 实现：`DarwinPlatformHandler`（TODO）、Linux、Windows。
+- 观察点成为计划本身的一部分
+- 不同策略可以自主决定观察节奏
+- 后处理时也更容易回看动作与采集结果的对应关系
 
 ---
 
-## 六、Session 编排
+## 四、为什么会形成当前的分层
 
-- **阶段一**：通过 TaskProvider.provide() 获取 Task（内部完成提取+生成+准备）。
-- **阶段二**：创建 session 目录（若非 dry-run）、保存 meta、**在 session 目录内自动保存 type_plan.json**；`editor.restart(context.work_dir)`。
-- **阶段三**：Collector.init_session；Executor.execute(type_plan, context)；Collector.finalize。
-- **阶段四**：退出 provide() 的 with 时，TaskProvider 自动恢复环境。
+当前代码中的主要分层，基本都能在早期设计讨论中找到来源。
 
-Session 不 import 任何具体 Provider/Strategy/Collector/Editor 实现，只依赖抽象；具体实现由入口组装注入。
+### 4.1 Provider 层
 
-### 6.1 CLI 与输出目录管理
+Provider 负责：
 
-- **运行模式互斥，例如**：
-  1. **全新采集**：`--source`（如 git-repo、jsonl 等）+ `--source-path PATH`；输出根目录由 `--output-dir` 指定（默认 `output/collected`）。
-  2. **复现**：`--plan PATH`（指定某次 session 的 type_plan.json）；输出根目录固定为 **plan 所在目录下的 `reproduce/` 子目录**，每次复现在该目录下再建 `session_YYYYMMDD_HHMMSS/`。
+- 从数据源读取样本
+- 构造统一变更表示
+- 准备工作目录
+- 把结果交给执行阶段
 
-- **Session 路径分层**（全新采集时；复现时为 `reproduce/session_xxx`）：
-  - 在 `output_dir` 下按数据源类型与标识分子目录，再在最小单位下建 `session_xxx`。当前包括例如：
-  - **git-repo**：`output_dir/git-repo/<仓库名>/<commit_id>/session_xxx/`。仓库名 = 仓库目录名；commit_id = 短 hash（无前缀）。
-  - **jsonl**：`output_dir/jsonl/<jsonl 文件名>/<条目 id>/session_xxx/`。条目 id = 该条记录的 `id` 字段值。
+这层存在的原因，是为了把“数据从哪里来”和“动作如何执行”解耦。
 
-- **Plan 文件**：每次非 dry-run 运行会在**当前 session 目录内**自动写入 `type_plan.json`，不提供 `--save-plan` 参数；plan 作为当次 pipeline 的留存与复现依据，与 session_meta、采集数据同目录。
+### 4.2 Strategy 层
 
----
+Strategy 负责把变更转成动作序列。
 
-## 七、ObserveAction 与 ObserveConfig
+当时就明确希望这里可以替换不同策略，例如：
 
-- **ObserveAction**：无额外字段，仅表示「在此处做一次观察」；序列化后为 `{"type": "observe"}`。
-- **ObserveConfig**：全局配置，所有 Observe 点共用；当前使用 `pre_wait`、`post_wait`（Executor 在 save_file 后、collect 前后 sleep）；`timeout`、`retry_count` 预留，未来可在 Collector/Executor 中用于采集超时与重试。可由 CLI 覆盖（当前未提供）。
+- 更粗粒度的 hunk 重放
+- 更细粒度的行内 diff
+- 不同的观察节奏
+- 不同的动作拆分和合并方式
 
----
+这也是为什么现在 `diff-hunk` 与 `similarity` 会并存。
 
-## 八、Cursor 配置校验（参考旧工程）
+### 4.3 Executor / Collector 分离
 
-旧工程中 `validate_cursor_settings()` 校验的配置（新工程若需可复用或精简）：
+执行器与采集器分开，是为了避免“输入逻辑”和“日志获取逻辑”再度耦合在一起。
 
-- **关闭自动补全/建议**：`editor.quickSuggestions` 全 off、`editor.suggestOnTriggerCharacters` false、`editor.wordBasedSuggestions` "off"、`editor.hover.enabled` false、`editor.parameterHints.enabled` false。
-- **关闭自动闭合/包围**：`editor.autoClosingBrackets` 等均为 "never"。
-- **关闭自动缩进**：`editor.autoIndent` "none"。
-- **显示空白**：`editor.renderWhitespace` "all"。
-- **HTML/JS/TS**：`html.autoClosingTags`、`javascript.autoClosingTags`、`typescript.autoClosingTags` 等 false。
+执行器只负责：
 
-目的：避免自动补全、自动闭合、自动缩进干扰「逐字输入」和采集结果。
+- 打开文件
+- 跳转位置
+- 输入和删除
+- 遇到 Observe 时通知采集
 
----
+采集器只负责：
 
-## 九、最终架构视图
+- 在当前观察点抓取日志
+- 记录文件内容和元信息
+- 写出结构化输出
 
-### 9.1 概念全景
+### 4.4 Editor / Platform 分离
 
-```
-数据输入（Git 工程 / JSONL）→ TaskProvider（提取+计划+准备）→ TypePlan → Executor + Collector
-                                                                  ↑
-                                                           可序列化 JSON
-                                                           PlanStrategy 可插拔
-```
+把编辑器适配和平台适配拆开，是为了把：
 
-### 9.2 数据流
+- “Cursor 里怎么打开文件、怎么导出 Output”
+- “macOS 上怎么发快捷键、怎么激活窗口”
 
-```
-阶段一：TaskProvider.provide() 内：extract_changes → plan_strategy.generate → _manage_environment → yield Task
-阶段二：Session：create_session_dir，editor.restart(work_dir)
-阶段三：Executor.execute(actions)；遇 ObserveAction → Collector.collect
-阶段四：退出 with → TaskProvider 恢复环境
-```
+这两类问题分开处理。
 
-### 9.3 模块依赖方向
-
-- `core/models`：纯数据，被所有人引用，不引用任何人。
-- `core/session`：只依赖抽象（TaskProvider、EditorAdapter、Collector、Executor），不依赖具体实现。
-- 具体实现（PlanFileProvider、GitRepoProvider、CursorAdapter、TabLogCollector 等）由 `__main__` 组装后注入；**箭头只向下，无环**。
-
-### 9.4 扩展点小结
-
-| 扩展点 | 抽象 | 已实现 | TODO |
-|--------|------|--------|------|
-| 数据源 | TaskProvider | PlanFileProvider | GitRepoProvider, JsonlProvider |
-| 输入重放策略 | PlanStrategy | （基类） | DiffReplayStrategy, BatchStrategy |
-| 采集 | Collector | （基类） | TabLogCollector |
-| 编辑器 | EditorAdapter | （基类） | CursorAdapter |
-| 平台 | PlatformHandler | （基类） | DarwinPlatformHandler 等 |
+这不等于当前已经支持多 IDE 或多平台，而是说架构上刻意保留了这个边界。
 
 ---
 
-## 十、第一版实现范围
+## 五、为什么后处理要独立成第二阶段
 
-### 10.1 已实现（可运行）
+设计时就判断，采集出来的原始日志不应该直接当成最终数据使用。
 
-- **core/models.py**：TypePlan、Action、FileInitState、ObserveConfig、WorkContext（含可选 source_type、source_path_segments）、Task、ChangeSet、FileChange；`to_json`/`from_json`、`to_dict`/`from_dict`。
-- **core/session.py**：`run_session()` 四阶段编排；按 context 建 session 路径分层；session 目录内自动写 type_plan.json；无 save_plan_path 参数。
-- **providers/plan_file.py**：从 JSON 加载 TypePlan，建临时目录写 file_init_states，yield Task（无 source 信息，用于复现）。
-- **executors/executor.py**：Action 循环、dry_run 模式。
-- **__main__.py**：两模式——全新采集 `--source`+`--source-path`、复现 `--plan`；`--output-dir`、`--dry-run`、`--type-interval`；复现时输出根为 plan 所在目录/reproduce/。
-- **examples/sample_plan.json**：示例计划。
+原因包括：
 
-### 10.2 TODO 骨架（待补充）
+- 原始 Observe 记录粒度太细
+- 需要把多份文件和动作信息整合成统一样本
+- 需要规则过滤、打分过滤、去重和格式转换
+- 实验阶段通常会不断调整后处理策略，但不希望反复重跑采集
 
-- **providers/git_repo.py**：_extract_changes（选 commit、算 diff、建 ChangeSet）、_manage_environment（checkout、隐藏 .git、恢复）；yield WorkContext 时设置 source_type="git-repo"，source_path_segments=(repo_name, commit_id)，其中 repo_name=仓库目录名、commit_id=短 hash 无前缀。
-- **providers/jsonl.py**：_extract_changes（读 JSONL、选样本，条目需含 "id" 字段）、_manage_environment（临时目录）；yield WorkContext 时设置 source_type="jsonl"，source_path_segments=(jsonl_basename, entry_id)。
-- **strategies/diff_replay.py**、**batch.py**：generate(change_set, observe_config) -> TypePlan。
-- **collectors/tab_log.py**：TabLogCollector，init_session、collect（调 editor.capture_tab_log、读文件、写 jsonl）、finalize。
-- **editors/cursor.py**：restart、open_file、goto、type_text、delete_chars、save_file、send_hotkey、validate_settings。
-- **platform/darwin.py**：type_char、send_key、send_hotkey、activate_window、launch_app、quit_app。
-- **git/manager.py**：get_commits、get_diff、checkout、hide_git_dir、restore_git_dir 等。
-- **utils/diff.py**：compute_line_diff、compute_char_diff 等。
+因此 `post_processor` 被设计成独立阶段，而不是把所有逻辑塞回 `data_synthesis`。
 
-### 10.3 验证方式
+这让工作流变成：
 
-```bash
-cd /path/to/DataSynthesis
-python -m data_synthesis --plan examples/sample_plan.json --dry-run
-```
+1. 先采集原始 session
+2. 再反复迭代后处理规则
 
-应完成：加载 JSON → 建临时目录并写文件 → Executor 按序列打印所有 Action → 清理临时目录。复现模式输出根目录为 `examples/reproduce/`（dry-run 不写文件）。
+这个拆分思路在当前代码里也仍然成立。
 
 ---
 
-## 十一、对话中的其他要点
+## 六、需要保留的设计约束
 
-- **跨文件交替**：Action 序列已支持（每个 Action 带 `file`）；Executor 在 `action.file != current_file` 时切换文件；当前可不实现复杂场景，但结构已预留。
-- **DeleteAction**：需要保留；diff 重放时会有先删后加。
-- **序列化**：TypePlan 设计为易序列化（所有 Action 有 `type` 字段，便于 JSON 序列化/反序列化分发）。
-- **单文件数据源**：当前设想为手动提供 before/after 两份内容；未来若有从 diff patch 或其它格式解析，可再扩展 SingleFileSource/JsonlProvider。
+虽然很多早期设想已经变化，但下面这些约束仍然值得保留：
+
+- 统一中间格式优先于为某个单一路径写专用逻辑
+- 执行层尽量只消费 `TypePlan + WorkContext`
+- 采集层尽量只处理“如何记录当前观察点”
+- 后处理层独立演进，不强绑采集阶段
+- 如果旧文档和代码冲突，应优先更新文档而不是保留历史说法
 
 ---
 
-## 十二、文档与后续使用
+## 七、如何使用这份文档
 
-- 在新工程（DataSynthesis）中开新对话时，可 **@docs/DESIGN_CONTEXT.md** 让模型加载本设计上下文，便于延续架构约束、实现 TODO、做优化而不偏离既定设计。
-- 若增删扩展点或调整交互方式，建议同步更新本文档。
+建议把本文当作“设计背景索引”，而不是“当前功能清单”。
+
+适合阅读它的场景包括：
+
+- 你想理解为什么仓库会分成 `data_synthesis` 和 `post_processor`
+- 你想理解为什么需要 `TypePlan`
+- 你要继续扩展 Provider / Strategy / Collector / Editor 这些抽象层
+- 你在做较大重构，希望不要偏离项目最初的设计意图
+
+如果你只是想知道项目现在怎么跑、支持哪些参数、输出什么文件，请直接回到根目录 `README.md` 和两个模块 README。

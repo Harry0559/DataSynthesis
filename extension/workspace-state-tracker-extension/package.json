@@ -1,0 +1,53 @@
+{
+  "name": "workspace-state-tracker",
+  "displayName": "Workspace State Tracker",
+  "description": "Track workspace folder state changes and write the latest workspace status to a local JSON file for external automation.",
+  "version": "1.0.0",
+  "publisher": "workspace-state-tracker",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Workspace State Tracker",
+      "properties": {
+        "workspaceStateTracker.filePath": {
+          "type": "string",
+          "default": "~/.workspace-state.json",
+          "description": "Workspace 状态 JSON 文件路径（支持 ~ 展开）"
+        },
+        "workspaceStateTracker.debounceMs": {
+          "type": "number",
+          "default": 50,
+          "description": "workspace 变化事件去抖间隔（毫秒）"
+        },
+        "workspaceStateTracker.heartbeatMs": {
+          "type": "number",
+          "default": 1000,
+          "description": "心跳写入间隔（毫秒）；设置为 0 表示关闭心跳"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "license": "MIT"
+}
+

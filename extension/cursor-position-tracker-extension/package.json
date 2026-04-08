@@ -1,0 +1,48 @@
+{
+  "name": "cursor-position-tracker",
+  "displayName": "Cursor Position Tracker",
+  "description": "Lightweight cursor position tracker that writes the latest cursor location to a local JSON file for external tools.",
+  "version": "1.0.0",
+  "publisher": "cursor-position-tracker",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Cursor Position Tracker",
+      "properties": {
+        "cursorPositionTracker.filePath": {
+          "type": "string",
+          "default": "~/.cursor-position-tracker.json",
+          "description": "光标位置 JSON 文件路径（支持 ~ 展开）"
+        },
+        "cursorPositionTracker.throttleMs": {
+          "type": "number",
+          "default": 50,
+          "description": "写入节流间隔（毫秒），用于控制写入频率"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "license": "MIT"
+}
+

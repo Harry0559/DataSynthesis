@@ -20,5 +20,8 @@ venv/
 
 input/
 output/
-docs/
-extension/
+
+# VS Code / Cursor 扩展：仓库仅保留源码
+extension/**/node_modules/
+extension/**/out/
+extension/**/*.vsix

@@ -5,6 +5,7 @@ from __future__ import annotations
 from .base import FilterBase
 from .capture_ok import CaptureOkFilter
 from .cont import ContFilter
+from .diff_validity import DiffValidityFilter
 from .edit import EditFilter
 from .llm import LlmFilter
 
@@ -14,4 +15,5 @@ __all__ = [
     "EditFilter",
     "ContFilter",
     "CaptureOkFilter",
+    "DiffValidityFilter",
 ]
